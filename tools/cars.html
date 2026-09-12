@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- Dev tool: renders every car model side by side so silhouettes can be checked.
+     Open http://localhost:8000/tools/cars.html  (add ?view=side for profiles). -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ZEEKR CIRCUIT — model sheet</title>
+<style>
+  html, body { margin: 0; background: #0c0f13; color: #eef2f6; font: 13px system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, 0); font-weight: 600; letter-spacing: 0.08em; font-size: 12px; text-shadow: 0 2px 8px #000; }
+  #hint { position: fixed; left: 12px; bottom: 10px; color: #7c8794; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="labels"></div>
+<div id="hint">side view: ?view=side · 3/4 view: default</div>
+<script type="module">
+import * as THREE from 'three';
+import { CARS, PAINTS, buildCar } from '../js/cars.js';
+
+const params = new URLSearchParams(location.search);
+const side = params.get('view') === 'side';
+const only = params.get('only');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0c0f13');
+
+// simple studio environment for the paint
+const c = document.createElement('canvas');
+c.width = 512; c.height = 256;
+const ctx = c.getContext('2d');
+const g = ctx.createLinearGradient(0, 0, 0, 256);
+g.addColorStop(0, '#4a5a72'); g.addColorStop(0.5, '#aab6c4'); g.addColorStop(0.52, '#3a3e44'); g.addColorStop(1, '#15181c');
+ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 256);
+ctx.fillStyle = '#fff'; ctx.fillRect(120, 20, 110, 40); ctx.fillRect(330, 30, 90, 26);
+const tex = new THREE.CanvasTexture(c);
+tex.mapping = THREE.EquirectangularReflectionMapping;
+tex.colorSpace = THREE.SRGBColorSpace;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromEquirectangular(tex).texture;
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#11151a', roughness: 0.6, metalness: 0.2 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const key = new THREE.DirectionalLight('#ffffff', 2.8);
+key.position.set(8, 12, 9);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -22, right: 22, top: 14, bottom: -14, near: 1, far: 60 });
+key.shadow.bias = -0.0007;
+scene.add(key, new THREE.DirectionalLight('#9fd3ff', 1.1).translateX(-9).translateY(5).translateZ(-8),
+  new THREE.HemisphereLight('#cfe3ff', '#0c0f13', 0.9));
+
+const cols = side ? 1 : 3;
+const labels = document.getElementById('labels');
+const placed = [];
+const LIST = only ? CARS.filter((c) => c.id === only) : CARS;
+LIST.forEach((spec, i) => {
+  const car = buildCar(spec, PAINTS[spec.paint].hex, { number: i + 1 });
+  const col = i % cols, row = Math.floor(i / cols);
+  const x = only ? 0 : side ? (i - 2.5) * 6.8 : (col - 1) * 7.2;
+  const z = side ? 0 : row * -7.4;
+  car.position.set(x, 0, z);
+  car.rotation.y = side ? Math.PI / 2 : -0.55;
+  scene.add(car);
+  placed.push({ car, spec });
+  const el = document.createElement('div');
+  el.className = 'lbl';
+  el.textContent = spec.name;
+  labels.appendChild(el);
+  placed[i].el = el;
+});
+
+const camera = new THREE.PerspectiveCamera(side ? 32 : 40, innerWidth / innerHeight, 0.5, 400);
+if (only) camera.position.set(side ? 0 : 7.5, side ? 1.5 : 2.6, side ? 17 : 9);
+else if (side) camera.position.set(0, 1.6, 78);
+else camera.position.set(1, 13.5, 24);
+camera.lookAt(only ? new THREE.Vector3(0, 0.85, 0) : side ? new THREE.Vector3(0, 1.1, 0) : new THREE.Vector3(0, 0.6, -3.5));
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+const v = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  renderer.render(scene, camera);
+  placed.forEach(({ car, el }) => {
+    v.set(car.position.x, 2.4, car.position.z).project(camera);
+    el.style.left = `${(v.x * 0.5 + 0.5) * innerWidth}px`;
+    el.style.top = `${(-v.y * 0.5 + 0.5) * innerHeight - 26}px`;
+  });
+});
+</script>
+</body>
+</html>
