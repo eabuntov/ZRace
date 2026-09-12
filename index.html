@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>ZEEKR CIRCUIT — electric racing</title>
+<link rel="stylesheet" href="css/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<!-- ------------------------------- HUD ------------------------------- -->
+<div id="hud" class="hidden">
+  <div class="hud-corner tl">
+    <div class="pos-box"><span id="pos">1</span><small>/<span id="posTotal">6</span></small></div>
+    <div class="lap-box">LAP <b><span id="lap">1</span>/<span id="lapTotal">3</span></b></div>
+  </div>
+
+  <div class="hud-corner tr">
+    <div class="time-row"><label>CURRENT</label><span id="tCur">--:--.---</span></div>
+    <div class="time-row"><label>LAST</label><span id="tLast">--:--.---</span></div>
+    <div class="time-row best"><label>BEST</label><span id="tBest">--:--.---</span></div>
+  </div>
+
+  <div id="tower" class="tower"></div>
+
+  <div class="hud-corner bl">
+    <canvas id="minimap" width="250" height="250"></canvas>
+  </div>
+
+  <div class="hud-corner br">
+    <div class="dial-wrap">
+      <canvas id="dial" width="260" height="260"></canvas>
+      <div class="dial-read"><span id="kmh">0</span><small>km/h</small></div>
+      <div class="dial-sub" id="powerRead">0 kW</div>
+    </div>
+  </div>
+
+  <div id="lights" class="start-lights"></div>
+  <div id="msg" class="center-msg"></div>
+
+  <div id="touch" class="touch hidden">
+    <div class="touch-left">
+      <button data-touch="left" aria-label="steer left">‹</button>
+      <button data-touch="right" aria-label="steer right">›</button>
+    </div>
+    <div class="touch-right">
+      <button data-touch="down" aria-label="brake">BRAKE</button>
+      <button data-touch="up" aria-label="accelerate">GO</button>
+    </div>
+  </div>
+</div>
+
+<!-- ------------------------------ MENUS ------------------------------ -->
+<div id="menu">
+
+  <section id="screen-title" class="screen">
+    <div class="title-wrap">
+      <h1>ZEEKR<span>CIRCUIT</span></h1>
+      <p class="tagline">Six electric machines. Five circuits. No engine noise.</p>
+      <div class="menu-buttons">
+        <button class="primary" data-go="car">START A RACE</button>
+        <button data-go="timetrial">TIME TRIAL</button>
+        <button data-go="controls">CONTROLS</button>
+      </div>
+      <p class="disclaimer">Unofficial fan-made game. Not affiliated with, or endorsed by, ZEEKR.
+        Circuit layouts and performance figures are simplified for racing.</p>
+    </div>
+  </section>
+
+  <section id="screen-car" class="screen hidden">
+    <header class="screen-head">
+      <button class="back" data-back="title">‹ Back</button>
+      <h2>Choose your car</h2>
+      <button class="primary" data-go="track">NEXT: CIRCUIT ›</button>
+    </header>
+    <div class="car-layout">
+      <div class="car-list" id="carList"></div>
+      <div class="car-info">
+        <h3 id="carName">ZEEKR X</h3>
+        <p id="carType" class="muted">Compact crossover</p>
+        <p id="carTagline" class="tagline-sm"></p>
+        <div class="stats" id="carStats"></div>
+        <div class="paints" id="paints"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-track" class="screen hidden">
+    <header class="screen-head">
+      <button class="back" data-back="car">‹ Back</button>
+      <h2>Choose a circuit</h2>
+      <button class="primary" id="startRace">START RACE ›</button>
+    </header>
+    <div class="track-grid" id="trackGrid"></div>
+    <div class="race-options">
+      <div class="opt"><label>LAPS</label><div class="seg" id="optLaps"></div></div>
+      <div class="opt"><label>OPPONENTS</label><div class="seg" id="optCars"></div></div>
+      <div class="opt"><label>DIFFICULTY</label><div class="seg" id="optDiff"></div></div>
+    </div>
+  </section>
+
+  <section id="screen-controls" class="screen hidden">
+    <header class="screen-head">
+      <button class="back" data-back="title">‹ Back</button>
+      <h2>Controls</h2>
+      <span></span>
+    </header>
+    <div class="controls-grid">
+      <div><kbd>W</kbd> <kbd>↑</kbd><span>Accelerate</span></div>
+      <div><kbd>S</kbd> <kbd>↓</kbd><span>Brake / reverse</span></div>
+      <div><kbd>A</kbd> <kbd>D</kbd><span>Steer</span></div>
+      <div><kbd>Space</kbd><span>Handbrake — get the tail out</span></div>
+      <div><kbd>C</kbd><span>Camera: chase / close / bonnet</span></div>
+      <div><kbd>R</kbd><span>Rejoin the track</span></div>
+      <div><kbd>P</kbd> <kbd>Esc</kbd><span>Pause</span></div>
+      <div><kbd>M</kbd><span>Mute</span></div>
+      <div class="wide"><span>A gamepad works too: right trigger accelerates, left brakes, left stick steers.
+        On a touch screen, on-screen pedals appear automatically.</span></div>
+    </div>
+  </section>
+
+  <section id="screen-pause" class="screen hidden overlay">
+    <div class="title-wrap narrow">
+      <h2>Paused</h2>
+      <div class="menu-buttons">
+        <button class="primary" id="resume">RESUME</button>
+        <button id="restart">RESTART RACE</button>
+        <button data-go="quit">QUIT TO MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-results" class="screen hidden overlay">
+    <div class="results-wrap">
+      <h2 id="resultTitle">Race result</h2>
+      <table class="results"><tbody id="resultRows"></tbody></table>
+      <div class="menu-buttons row">
+        <button class="primary" id="raceAgain">RACE AGAIN</button>
+        <button data-go="track">CHANGE CIRCUIT</button>
+        <button data-go="quit">MAIN MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-loading" class="screen hidden overlay">
+    <div class="loading-wrap">
+      <div class="bar"><i></i></div>
+      <p id="loadingText">Building circuit…</p>
+    </div>
+  </section>
+</div>
+
+<div id="fatal" class="hidden"></div>
+
+<script>
+  // Friendly message when the page is opened straight from disk: ES modules need http.
+  if (location.protocol === 'file:') {
+    document.getElementById('fatal').className = '';
+    document.getElementById('fatal').innerHTML =
+      '<h2>Start a local server first</h2><p>Browsers refuse to load ES modules from <code>file://</code>.' +
+      ' In this folder run:</p><pre>python -m http.server 8000</pre><p>then open ' +
+      '<a href="http://localhost:8000/">http://localhost:8000/</a></p>';
+  }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
