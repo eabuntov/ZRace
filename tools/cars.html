@@ -18,13 +18,14 @@
 </head>
 <body>
 <div id="labels"></div>
-<div id="hint">side view: ?view=side · 3/4 view: default</div>
+<div id="hint">views: ?view=side | front | rear · one car: ?only=x</div>
 <script type="module">
 import * as THREE from 'three';
 import { CARS, PAINTS, buildCar } from '../js/cars.js';
 
 const params = new URLSearchParams(location.search);
-const side = params.get('view') === 'side';
+const view = params.get('view') || '';
+const side = view === 'side';
 const only = params.get('only');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -75,7 +76,7 @@ LIST.forEach((spec, i) => {
   const x = only ? 0 : side ? (i - 2.5) * 6.8 : (col - 1) * 7.2;
   const z = side ? 0 : row * -7.4;
   car.position.set(x, 0, z);
-  car.rotation.y = side ? Math.PI / 2 : -0.55;
+  car.rotation.y = side ? Math.PI / 2 : view === 'front' || view === 'rear' ? 0 : -0.55;
   scene.add(car);
   placed.push({ car, spec });
   const el = document.createElement('div');
@@ -86,10 +87,12 @@ LIST.forEach((spec, i) => {
 });
 
 const camera = new THREE.PerspectiveCamera(side ? 32 : 40, innerWidth / innerHeight, 0.5, 400);
-if (only) camera.position.set(side ? 0 : 7.5, side ? 1.5 : 2.6, side ? 17 : 9);
-else if (side) camera.position.set(0, 1.6, 78);
+if (view === 'front') camera.position.set(0, 1.3, 10);
+else if (view === 'rear') camera.position.set(0, 1.3, -10);
+else if (only) camera.position.set(side ? 0 : 5.6, side ? 1.15 : 2.1, side ? 11 : 6.4);
+else if (side) camera.position.set(0, 1.5, 34);
 else camera.position.set(1, 13.5, 24);
-camera.lookAt(only ? new THREE.Vector3(0, 0.85, 0) : side ? new THREE.Vector3(0, 1.1, 0) : new THREE.Vector3(0, 0.6, -3.5));
+camera.lookAt(view === 'front' || view === 'rear' ? new THREE.Vector3(0, 0.85, 0) : only ? new THREE.Vector3(0, 0.85, 0) : side ? new THREE.Vector3(0, 1.1, 0) : new THREE.Vector3(0, 0.6, -3.5));
 
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);

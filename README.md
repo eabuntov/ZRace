@@ -45,9 +45,15 @@ on-screen pedals appear on touch devices.
 | ZEEKR 7X | Mid-size SUV | Heavy, stable, forgiving |
 | ZEEKR 009 | Luxury MPV | Nearly three tonnes — a challenge to race |
 
-Each model is built from a parametric side profile that is extruded, tapered and given its
-own light signature, so the silhouettes stay distinct. Opponents are picked from the models
-closest in performance to yours, so the field stays competitive whatever you drive.
+Each body is a lofted hull. A model carries a table of cross-sections along its length -
+roof line, window line, width and tumblehome at each station - which are interpolated with a
+monotone spline, turned into rounded sections and stitched into a surface. Faces are then
+split between paint, glass and black trim by where they sit, which is what gives every car
+its own glasshouse, blacked-out pillars and light signature. The hulls are built by
+mirroring one half, so the cars are exactly symmetric left to right.
+
+Opponents are picked from the models closest in performance to yours, so the field stays
+competitive whatever you drive.
 
 Performance figures are tuned for racing, not taken from the manufacturer.
 
@@ -80,7 +86,7 @@ js/input.js         keyboard, gamepad and touch
 js/audio.js         synthesised EV whine, tyre scrub, impacts (Web Audio, no samples)
 js/ui.js            menus, speed dial, minimap, timing tower, results
 js/textures.js      every texture, painted into a canvas at run time
-tools/cars.html     dev page: renders all car models side by side
+tools/cars.html     dev page: model sheet (?view=side | front | rear, ?only=<id>)
 ```
 
 ### Handy while developing
@@ -92,8 +98,8 @@ The page accepts query parameters so you can jump straight into a race:
 ```
 
 `auto=1` hands your car to the AI, which is useful for watching a lap or testing a track.
-`tools/cars.html` renders the whole model line-up (`?view=side` for profiles, `?only=x` for
-a single car).
+`tools/cars.html` renders the whole model line-up: `?view=side`, `?view=front`, `?view=rear`,
+and `?only=x` for a single car.
 
 `js/trackPath.js` has no three.js dependency, so track geometry can be checked from Node:
 
