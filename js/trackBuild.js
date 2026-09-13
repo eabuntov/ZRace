@@ -240,15 +240,19 @@ export class TrackWorld {
         const h = (cfg.height[0] + this.rnd() * (cfg.height[1] - cfg.height[0])) * (q === 0 ? 1 : 0.6 + this.rnd() * 0.5);
         const w = h * (1.1 + this.rnd() * 0.8);
         const px = cx + Math.sin(a2) * d2, pz = cz + Math.cos(a2) * d2;
-        const sides = 6;
+        const sides = 7;
         const peak = new THREE.Color(cfg.snow ? '#eef3f8' : cfg.color).lerp(base, cfg.snow ? 0.45 : 0.85);
+        // one radius per corner, shared by the two faces that meet there, otherwise
+        // neighbouring faces do not line up and the slope shows gaps
+        const radii = [];
+        for (let sd = 0; sd < sides; sd++) radii.push(w * (0.65 + this.rnd() * 0.6));
         for (let sd = 0; sd < sides; sd++) {
           const a0 = (sd / sides) * Math.PI * 2, a1 = ((sd + 1) / sides) * Math.PI * 2;
-          const r0 = w * (0.6 + this.rnd() * 0.7), r1 = w * (0.6 + this.rnd() * 0.7);
+          const r0 = radii[sd], r1 = radii[(sd + 1) % sides];
           verts.push(px + Math.cos(a0) * r0, -20, pz + Math.sin(a0) * r0);
           verts.push(px + Math.cos(a1) * r1, -20, pz + Math.sin(a1) * r1);
           verts.push(px, h, pz);
-          const shade = 0.55 + this.rnd() * 0.3;
+          const shade = 0.72 + this.rnd() * 0.22;
           const dark = base.clone().multiplyScalar(shade);
           colors.push(dark.r, dark.g, dark.b, dark.r, dark.g, dark.b, peak.r, peak.g, peak.b);
         }
@@ -258,7 +262,7 @@ export class TrackWorld {
     g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
+    const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true, side: THREE.DoubleSide }));
     mesh.frustumCulled = false;
     this.track(mesh, false, false);
   }
