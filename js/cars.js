@@ -251,8 +251,8 @@ function halfSection(hw, sill, belt, top, tumble, floorY, dome) {
 // Wheel arches: the sill lifts over each axle so the wheels sit in an opening.
 function sillLine(spec) {
   const { wb, wheelR } = spec.dims;
-  const archR = wheelR + 0.17;
-  const apex = wheelR + 0.14;
+  const archR = wheelR + 0.15;
+  const apex = wheelR + 0.10;
   return (z) => {
     let y = spec.ride;
     for (const axle of [wb / 2, -wb / 2]) {
@@ -363,13 +363,22 @@ function buildHull(spec) {
   const noseIdx = capCentre(stations.length - 1, 0.04);
   const tailIdx = capCentre(0, -0.04);
   const last = rings.length - 1;
+  // Wind each cap triangle so its normal points away from the car (+Z at the nose,
+  // -Z at the tail) rather than trusting the direction the ring happens to run in.
+  const capTri = (i0, i1, centre, wantZ) => {
+    const px = (k) => positions[k * 3], py = (k) => positions[k * 3 + 1];
+    const ux = px(i1) - px(i0), uy = py(i1) - py(i0);
+    const vx = px(centre) - px(i0), vy = py(centre) - py(i0);
+    return (ux * vy - uy * vx) * wantZ >= 0 ? [i0, i1, centre] : [i1, i0, centre];
+  };
   for (let j = 0; j < RING; j++) {
+    const j2 = (j + 1) % RING;
     const a = idx(last, j), b = idx(last, j + 1);
-    const y = (rings[last][j][1] + rings[last][(j + 1) % RING][1]) / 2;
-    groups[y < spec.ride + 0.3 ? TRIM : PAINT].push(b, a, noseIdx);   // dark lower fascia
+    const y = (rings[last][j][1] + rings[last][j2][1]) / 2;
+    groups[y < spec.ride + 0.3 ? TRIM : PAINT].push(...capTri(a, b, noseIdx, 1));   // dark lower fascia
     const c = idx(0, j), d = idx(0, j + 1);
-    const y2 = (rings[0][j][1] + rings[0][(j + 1) % RING][1]) / 2;
-    groups[y2 < spec.ride + 0.3 ? TRIM : PAINT].push(c, d, tailIdx);
+    const y2 = (rings[0][j][1] + rings[0][j2][1]) / 2;
+    groups[y2 < spec.ride + 0.3 ? TRIM : PAINT].push(...capTri(c, d, tailIdx, -1));
   }
 
   const geo = new THREE.BufferGeometry();
@@ -552,7 +561,7 @@ export function buildCar(spec, paintHex, opts = {}) {
     const zm = (cab.ws + cab.rg) / 2;
     for (const sx of [-1, 1]) {
       const line = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.022, Math.abs(cab.ws - cab.rg) * 0.88), chromeMat);
-      line.position.set(sx * prof.hw(zm) * 0.97, prof.belt(zm) + 0.035, zm);
+      line.position.set(sx * (prof.hw(zm) + 0.012), prof.belt(zm) + 0.02, zm);
       group.add(line);
     }
   }
@@ -562,12 +571,12 @@ export function buildCar(spec, paintHex, opts = {}) {
   for (const sx of [-1, 1]) {
     for (const dz of st.slider ? [0.5, -0.9] : [0.4, -0.8]) {
       const h = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.04, 0.18), handleMat);
-      h.position.set(sx * prof.hw(dz) * 0.995, prof.belt(dz) - 0.13, dz);
+      h.position.set(sx * (prof.hw(dz) + 0.012), prof.belt(dz) - 0.13, dz);
       group.add(h);
     }
     if (st.slider) {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.028, 1.5), trimMat);
-      rail.position.set(sx * prof.hw(-0.9) * 0.99, prof.belt(-0.9) - 0.34, -0.95);
+      rail.position.set(sx * (prof.hw(-0.9) + 0.008), prof.belt(-0.9) - 0.34, -0.95);
       group.add(rail);
     }
   }
@@ -710,8 +719,8 @@ export function buildCar(spec, paintHex, opts = {}) {
     tex.colorSpace = THREE.SRGBColorSpace;
     const numMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.55 });
     for (const sx of [-1, 1]) {
-      const disc = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.44), numMat);
-      disc.position.set(sx * prof.hw(-wb * 0.12) * 0.995, prof.belt(-wb * 0.12) - 0.3, -wb * 0.12);
+      const disc = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), numMat);
+      disc.position.set(sx * (prof.hw(-wb * 0.12) + 0.025), prof.belt(-wb * 0.12) - 0.26, -wb * 0.12);
       disc.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
       group.add(disc);
     }
