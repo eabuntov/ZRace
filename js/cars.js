@@ -342,7 +342,10 @@ function buildHull(spec) {
   for (let i = 0; i < rings.length - 1; i++) {
     const z = (stations[i].z + stations[i + 1].z) / 2;
     for (let j = 0; j < RING; j++) {
-      const h = j < HALF ? j : RING - j;            // mirror back onto the half section
+      // Band between perimeter points j and j+1, mapped back onto the half section.
+      // The mirrored half runs the other way, so it is RING-1-j there, not RING-j -
+      // getting this wrong shifts every material band one step to one side.
+      const h = j < HALF - 1 ? j : RING - 1 - j;
       const j2 = (j + 1) % RING;
       const y = (rings[i][j][1] + rings[i][j2][1] + rings[i + 1][j][1] + rings[i + 1][j2][1]) / 4;
       const g = faceMaterial(h, z, y, spec);
