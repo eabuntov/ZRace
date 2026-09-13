@@ -519,7 +519,7 @@ class Game {
     this.camera.updateProjectionMatrix();
 
     if (mode.bonnet) {
-      const pos = target.clone().addScaledVector(fwd, p.spec.dims.L * 0.18).setY(p.y + p.spec.body.hoodY + 0.18);
+      const pos = target.clone().addScaledVector(fwd, p.spec.dims.L * 0.18).setY(p.y + p.spec.hoodY + 0.18);
       this.camera.position.copy(pos);
       this.camLook.copy(pos).addScaledVector(fwd, 14).setY(p.y + 1.2);
       this.camera.up.set(0, 1, 0);
