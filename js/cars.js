@@ -212,14 +212,17 @@ const RING = HALF * 2 - 2;
 // Where there is a glasshouse the upper points follow the window line; over the bonnet
 // and boot they instead form raised fender tops with a shallow crown between them,
 // which is what stops the top of the car reading as one flat plane.
-function halfSection(hw, sill, belt, top, tumble, floorY, dome) {
+function halfSection(hw, sill, belt, top, tumble, floorY, dome, arch = 0) {
   top = Math.max(top, belt + 0.02);
   const tw = hw * tumble;
+  // `arch` is 0 along the rockers and 1 over an axle: the sill tucks in between the
+  // wheels but stays full width around the openings, so the tyres sit inside the lip
+  // instead of standing proud of the bodywork.
   const lower = [
     [0, floorY],
     [hw * 0.55, floorY + 0.015],
-    [hw * 0.86, sill],
-    [hw * 0.98, sill + Math.min(0.18, Math.max(0.04, (belt - sill) * 0.35))],
+    [hw * (0.86 + 0.13 * arch), sill],
+    [hw * (0.98 + 0.02 * arch), sill + Math.min(0.18, Math.max(0.04, (belt - sill) * 0.35))],
     [hw, (sill + belt) * 0.5 + 0.02],
     [hw * 0.99, belt - 0.06],
   ];
@@ -319,9 +322,11 @@ function buildHull(spec) {
   const stations = [];
   for (let i = 0; i <= steps; i++) {
     const z = zR + ((zF - zR) * i) / steps;
+    const sillY = sill(z);
+    const arch = Math.min(1, Math.max(0, (sillY - spec.ride) / 0.14));
     stations.push({
       z,
-      pts: halfSection(fHw(z), sill(z), fBelt(z), fTop(z), fTum(z), spec.ride - 0.04, 0.035),
+      pts: halfSection(fHw(z), sillY, fBelt(z), fTop(z), fTum(z), spec.ride - 0.04, 0.035, arch),
     });
   }
 
@@ -536,16 +541,36 @@ export function buildCar(spec, paintHex, opts = {}) {
   const prof = hullProfile(spec);
   const cab = spec.cab;
 
-  // wheel arch flares / cladding for the crossovers
+  // Wheel arch trim, built along the sill line itself so it hugs the opening.
   if (st.cladding) {
+    const archR = wheelR + 0.15;
+    const posA = [], idxA = [];
     for (const axle of [wb / 2, -wb / 2]) {
       for (const sx of [-1, 1]) {
-        const arch = new THREE.Mesh(new THREE.TorusGeometry(wheelR + 0.11, 0.038, 8, 18, Math.PI * 0.95), trimMat);
-        arch.rotation.y = Math.PI / 2;
-        arch.position.set(sx * (prof.hw(axle) - 0.02), wheelR + 0.02, axle);
-        group.add(arch);
+        const N = 18, base = posA.length / 3;
+        for (let i = 0; i <= N; i++) {
+          const z = axle + (-1 + (2 * i) / N) * archR * 0.97;
+          const y = prof.sill(z);
+          let ry = y - wheelR, rz = z - axle;
+          const rl = Math.hypot(ry, rz) || 1;
+          ry /= rl; rz /= rl;
+          const x = sx * (prof.hw(z) + 0.014);
+          posA.push(x, y + ry * 0.004, z + rz * 0.004);
+          posA.push(x, y + ry * 0.075, z + rz * 0.075);
+        }
+        for (let i = 0; i < N; i++) {
+          const a = base + i * 2;
+          idxA.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+        }
       }
     }
+    const ag = new THREE.BufferGeometry();
+    ag.setAttribute('position', new THREE.Float32BufferAttribute(posA, 3));
+    ag.setIndex(idxA);
+    ag.computeVertexNormals();
+    group.add(new THREE.Mesh(ag, new THREE.MeshStandardMaterial({
+      color: '#15171b', roughness: 0.75, metalness: 0.15, side: THREE.DoubleSide,
+    })));
   }
 
   // roof rails
@@ -675,15 +700,23 @@ export function buildCar(spec, paintHex, opts = {}) {
     }
   }
 
-  // mirrors on stalks
-  const zMir = cab.ws - 0.18;
+  // door mirrors: a thin arm, a moulded housing and a dark mirror face
+  const zMir = cab.ws - 0.2;
+  const mirrorGlass = new THREE.MeshStandardMaterial({ color: '#1b2026', roughness: 0.08, metalness: 0.95 });
   for (const sx of [-1, 1]) {
-    const stalk = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.028, 0.05), trimMat);
-    stalk.position.set(sx * (prof.hw(zMir) + 0.03), prof.belt(zMir) + 0.06, zMir);
-    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.16), bodyMat);
-    shell.position.set(sx * (prof.hw(zMir) + 0.08), prof.belt(zMir) + 0.07, zMir - 0.03);
-    shell.rotation.y = sx * 0.16;
-    group.add(stalk, shell);
+    const x0 = prof.hw(zMir), y0 = prof.belt(zMir) + 0.05;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.02, 0.035), trimMat);
+    arm.position.set(sx * (x0 + 0.035), y0 + 0.01, zMir);
+    arm.rotation.z = -sx * 0.3;
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), bodyMat);
+    shell.scale.set(0.055, 0.05, 0.095);
+    shell.position.set(sx * (x0 + 0.095), y0 + 0.035, zMir - 0.015);
+    shell.rotation.y = sx * 0.2;
+    const face = new THREE.Mesh(new THREE.CircleGeometry(0.043, 16), mirrorGlass);
+    face.scale.set(1, 0.8, 1);
+    face.position.set(sx * (x0 + 0.098), y0 + 0.035, zMir - 0.1);
+    face.rotation.y = Math.PI + sx * 0.22;
+    group.add(arm, shell, face);
   }
 
   // wipers resting at the base of the windscreen (a symmetric pair)
