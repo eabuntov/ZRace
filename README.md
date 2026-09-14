@@ -63,6 +63,19 @@ competitive whatever you drive.
 
 Performance figures are tuned for racing, not taken from the manufacturer.
 
+The X and the 7X are shaped against measurements taken off scanned reference models, so
+their rooflines, beltlines, wheel sizes and ride heights are the real cars' rather than an
+approximation - which is also where the other four got their tail shapes, since every one
+of them was tapering off far too early. The reference files are not part of the game and
+are not in the repository; nothing is loaded at run time. Credit where it is due:
+
+> This work is based on "Zeekr X 2025"
+> (https://sketchfab.com/3d-models/zeekr-x-2025-3be1c6c3848e4148995b9b7cc22cd480) and
+> "Zeekr 7X 2025"
+> (https://sketchfab.com/3d-models/zeekr-7x-2025-665a30d4c74048e4aec4749411844062)
+> by ItsDiyor (https://sketchfab.com/ItsDiyor) licensed under CC-BY-4.0
+> (http://creativecommons.org/licenses/by/4.0/)
+
 ## The circuits
 
 | Circuit | Country | Length | Character |
