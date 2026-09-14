@@ -52,6 +52,12 @@ split between paint, glass and black trim by where they sit, which is what gives
 its own glasshouse, blacked-out pillars and light signature. The hulls are built by
 mirroring one half, so the cars are exactly symmetric left to right.
 
+Light signatures are swept along the nose and tail rather than bolted on flat: the body's
+own width at the height of each bar says where the bodywork actually is, so a full-width
+bar wraps the corners instead of hanging off them. The 007, 001 and 7X wear a Stargate
+panel - a lit matrix across the whole nose - the X and 7X get split lamps under a slim
+strip, and the 009 gets the upright chrome grille.
+
 Opponents are picked from the models closest in performance to yours, so the field stays
 competitive whatever you drive.
 
