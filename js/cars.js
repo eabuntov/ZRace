@@ -213,18 +213,26 @@ const RING = HALF * 2 - 2;
 // and boot they instead form raised fender tops with a shallow crown between them,
 // which is what stops the top of the car reading as one flat plane.
 function halfSection(hw, sill, belt, top, tumble, floorY, dome, arch = 0) {
+  // An arch opening lifts the sill a long way up the side of the car, and over the
+  // bonnet the window line is only a few centimetres above it. Keep a minimum depth of
+  // bodywork between the two: where the arch would otherwise reach the window line it
+  // pushes it up instead, which is what gives the fender its crown over each wheel.
+  belt = Math.max(belt, sill + 0.09);
   top = Math.max(top, belt + 0.02);
   const tw = hw * tumble;
   // `arch` is 0 along the rockers and 1 over an axle: the sill tucks in between the
   // wheels but stays full width around the openings, so the tyres sit inside the lip
   // instead of standing proud of the bodywork.
+  // The lower body is spaced as fractions of the sill -> belt span so the points stay
+  // in order however far the arch has lifted the sill.
+  const span = belt - sill;
   const lower = [
     [0, floorY],
     [hw * 0.55, floorY + 0.015],
     [hw * (0.86 + 0.13 * arch), sill],
-    [hw * (0.98 + 0.02 * arch), sill + Math.min(0.18, Math.max(0.04, (belt - sill) * 0.35))],
-    [hw, (sill + belt) * 0.5 + 0.02],
-    [hw * 0.99, belt - 0.06],
+    [hw * (0.98 + 0.02 * arch), sill + span * 0.35],
+    [hw, sill + span * 0.60],
+    [hw * 0.99, sill + span * 0.88],
   ];
   const cabin = [
     [hw * 0.95, belt + Math.min(0.05, (top - belt) * 0.3)],
@@ -252,10 +260,19 @@ function halfSection(hw, sill, belt, top, tumble, floorY, dome, arch = 0) {
 }
 
 // Wheel arches: the sill lifts over each axle so the wheels sit in an opening.
+//
+// A wheel sits on the ground, so the top of its tyre is a full diameter up - the opening
+// has to reach `2 * wheelR` plus some suspension travel, not one radius. Anything lower
+// and the bodywork simply closes over the tyre.
+const ARCH_GAP = 0.06;                    // clearance between tyre and arch lip
+function archGeom(spec) {
+  const { wheelR } = spec.dims;
+  return { archR: wheelR + 0.17, apex: 2 * wheelR + ARCH_GAP };
+}
+
 function sillLine(spec) {
-  const { wb, wheelR } = spec.dims;
-  const archR = wheelR + 0.15;
-  const apex = wheelR + 0.10;
+  const { wb } = spec.dims;
+  const { archR, apex } = archGeom(spec);
   return (z) => {
     let y = spec.ride;
     for (const axle of [wb / 2, -wb / 2]) {
@@ -320,10 +337,11 @@ function buildHull(spec) {
 
   const steps = Math.max(40, Math.round((zF - zR) / 0.07));
   const stations = [];
+  const lift = archGeom(spec).apex - spec.ride;    // how far the sill rises over an axle
   for (let i = 0; i <= steps; i++) {
     const z = zR + ((zF - zR) * i) / steps;
     const sillY = sill(z);
-    const arch = Math.min(1, Math.max(0, (sillY - spec.ride) / 0.14));
+    const arch = Math.min(1, Math.max(0, (sillY - spec.ride) / (lift * 0.55)));
     stations.push({
       z,
       pts: halfSection(fHw(z), sillY, fBelt(z), fTop(z), fTum(z), spec.ride - 0.04, 0.035, arch),
@@ -454,18 +472,21 @@ function getRimTexture() {
 }
 
 // Tyre built as a lathe so it has a flat tread and rounded shoulders.
+// LatheGeometry takes its profile running *up* the lathe axis: ordered the other way it
+// winds every face backwards and points the normals at the axis, which culls the tread
+// and leaves the tyre looking like a hole. So the profile starts at the inboard sidewall.
 function tyreGeometry(R, width) {
   const w = width / 2;
-  const inner = R * 0.7;
+  const bore = R * 0.7;
   const pts = [
-    new THREE.Vector2(inner, w),
-    new THREE.Vector2(R * 0.9, w),
-    new THREE.Vector2(R * 0.985, w * 0.86),
-    new THREE.Vector2(R, w * 0.62),
-    new THREE.Vector2(R, -w * 0.62),
-    new THREE.Vector2(R * 0.985, -w * 0.86),
+    new THREE.Vector2(bore, -w),
     new THREE.Vector2(R * 0.9, -w),
-    new THREE.Vector2(inner, -w),
+    new THREE.Vector2(R * 0.985, -w * 0.86),
+    new THREE.Vector2(R, -w * 0.62),
+    new THREE.Vector2(R, w * 0.62),
+    new THREE.Vector2(R * 0.985, w * 0.86),
+    new THREE.Vector2(R * 0.9, w),
+    new THREE.Vector2(bore, w),
   ];
   const geo = new THREE.LatheGeometry(pts, 26);
   geo.rotateZ(Math.PI / 2);          // spin axis along X
@@ -483,7 +504,9 @@ function buildWheel(R, width, side) {
   const disc = new THREE.Mesh(new THREE.CircleGeometry(R * 0.74, 26), rimFace);
   disc.rotation.y = (side > 0 ? 1 : -1) * Math.PI / 2;
   disc.position.x = side * width * 0.46;
-  const inner = new THREE.Mesh(new THREE.CircleGeometry(R * 0.68, 20), new THREE.MeshStandardMaterial({ color: '#0b0d10', roughness: 1 }));
+  // wide enough to cap the tyre's bore (R * 0.7) - any narrower and there is a ring
+  // gap to see straight through the wheel
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(R * 0.72, 20), new THREE.MeshStandardMaterial({ color: '#0b0d10', roughness: 1 }));
   inner.rotation.y = (side > 0 ? -1 : 1) * Math.PI / 2;
   inner.position.x = -side * width * 0.44;
   spin.add(tyre, disc, inner);
@@ -510,8 +533,7 @@ function getBarTexture() {
 
 // --- assembly ----------------------------------------------------------------
 export function buildCar(spec, paintHex, opts = {}) {
-  const { W, wb, wheelR, tyre } = spec.dims;
-  const halfW = W / 2;
+  const { wb, wheelR, tyre } = spec.dims;
   const zF = Math.max(...spec.hull.map((r) => r[0]));
   const zR = Math.min(...spec.hull.map((r) => r[0]));
   const group = new THREE.Group();
@@ -543,7 +565,7 @@ export function buildCar(spec, paintHex, opts = {}) {
 
   // Wheel arch trim, built along the sill line itself so it hugs the opening.
   if (st.cladding) {
-    const archR = wheelR + 0.15;
+    const { archR } = archGeom(spec);
     const posA = [], idxA = [];
     for (const axle of [wb / 2, -wb / 2]) {
       for (const sx of [-1, 1]) {
@@ -728,13 +750,16 @@ export function buildCar(spec, paintHex, opts = {}) {
   }
 
   // --- wheels ---
+  // Each axle gets its own track so the outer face of the tyre sits just inside the arch
+  // lip at that end of the car, rather than being swallowed by the widest bodywork.
   const wheelWidth = tyre || 0.27;
   const protos = { 1: buildWheel(wheelR, wheelWidth, 1), '-1': buildWheel(wheelR, wheelWidth, -1) };
   const wheels = [];
-  const track = halfW - wheelWidth * 0.5 - 0.02;
+  const trackAt = (z) => prof.hw(z) * 0.99 - wheelWidth * 0.5 - 0.015;
   for (const [zi, xi] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
     const w = protos[xi].clone(true);
-    w.position.set(xi * track, wheelR, zi * (wb / 2));
+    const z = zi * (wb / 2);
+    w.position.set(xi * trackAt(z), wheelR, z);
     group.add(w);
     wheels.push(w);
   }
