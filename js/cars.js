@@ -55,6 +55,7 @@ export const CARS = [
       [-2.20, 1.20, 1.14, 0.76, 0.96],
     ],
     style: { cladding: true, twoTone: true, front: 'split', flare: 0.03 },
+    model: 'assets/cars/zeekr_x.glb',
     paint: 0,
   },
   {
@@ -157,6 +158,7 @@ export const CARS = [
       [-2.48, 1.22, 1.16, 0.76, 0.97],
     ],
     style: { cladding: true, twoTone: true, front: 'split', rails: true },
+    model: 'assets/cars/zeekr_7x.glb',
     paint: 3,
   },
   {

@@ -66,8 +66,17 @@ Performance figures are tuned for racing, not taken from the manufacturer.
 The X and the 7X are shaped against measurements taken off scanned reference models, so
 their rooflines, beltlines, wheel sizes and ride heights are the real cars' rather than an
 approximation - which is also where the other four got their tail shapes, since every one
-of them was tapering off far too early. The reference files are not part of the game and
-are not in the repository; nothing is loaded at run time. Credit where it is due:
+of them was tapering off far too early. The full-resolution reference files are not in
+the repository.
+
+The car-select screen goes one better and puts the scan itself on the turntable for those
+two. It only ever shows one car, standing still, so it can afford what a race cannot: the
+grid stays code-built, and six cars on track come to about 33,000 triangles between them.
+The showroom copies in `assets/cars/` were stripped of their interiors and their four
+spare wheel sets, then welded, simplified and quantised - 391k triangles and 14 MB down to
+81k and 1.8 MB for the X, 486k and 31 MB down to 102k and 2.8 MB for the 7X. They load
+only when you open the screen, the code-built car is on the turntable until one arrives,
+and a download that fails just leaves it there. Credit where it is due:
 
 > This work is based on "Zeekr X 2025"
 > (https://sketchfab.com/3d-models/zeekr-x-2025-3be1c6c3848e4148995b9b7cc22cd480) and

@@ -4,6 +4,7 @@ import { TRACKS } from './tracks.js';
 import { TrackPath } from './trackPath.js';
 import { TrackWorld } from './trackBuild.js';
 import { CARS, PAINTS, buildCar, animateCar } from './cars.js';
+import { loadShowroomCar } from './carModel.js';
 import { Vehicle, resolveCollisions } from './physics.js';
 import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
@@ -169,14 +170,31 @@ class Game {
     this.showAngle = 0.6;
   }
 
-  refreshShowroomCar() {
-    if (this.showCar) {
-      this.showroom.remove(this.showCar);
+  // The turntable car is built in code first so the screen is never empty, then
+  // replaced by the scanned model if this car has one and it arrives before the choice
+  // moves on. Scanned models share cached geometry, so only built ones are disposed.
+  dropShowroomCar() {
+    if (!this.showCar) return;
+    this.showroom.remove(this.showCar);
+    if (!this.showCar.userData.shared) {
       this.showCar.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     }
+    this.showCar = null;
+  }
+
+  refreshShowroomCar() {
+    this.dropShowroomCar();
     const spec = CARS[this.settings.carIndex];
-    this.showCar = buildCar(spec, PAINTS[this.settings.paintIndex].hex);
+    const paintHex = PAINTS[this.settings.paintIndex].hex;
+    this.showCar = buildCar(spec, paintHex);
     this.showroom.add(this.showCar);
+    const token = (this.showToken = (this.showToken || 0) + 1);
+    loadShowroomCar(spec, paintHex).then((model) => {
+      if (!model || token !== this.showToken) return;
+      this.dropShowroomCar();
+      this.showCar = model;
+      this.showroom.add(model);
+    });
   }
 
   // ----------------------------------------------------------------- menus
