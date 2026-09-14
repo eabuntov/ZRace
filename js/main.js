@@ -1,4 +1,4 @@
-// ZEEKR CIRCUIT - game shell: renderer, showroom, race loop and race rules.
+// ZRace - game shell: renderer, showroom, race loop and race rules.
 import * as THREE from 'three';
 import { TRACKS } from './tracks.js';
 import { TrackPath } from './trackPath.js';
@@ -341,7 +341,7 @@ class Game {
     const f = path.sampleAt(path.wrapS(-9 - (n - 1) * 8.5));
     this.camPos.set(f.x - f.tx * 9, f.y + 3.4, f.z - f.tz * 9);
     this.camLook.set(f.x, f.y + 1, f.z);
-    console.log(`[zeekr] ${def.name} built in ${Math.round(performance.now() - t0)} ms`);
+    console.log(`[zrace] ${def.name} built in ${Math.round(performance.now() - t0)} ms`);
   }
 
   endRace(clear) {

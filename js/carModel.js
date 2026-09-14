@@ -11,25 +11,31 @@
 // fails, or a car with no scan, simply leaves the built one there.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { PAINTS } from './cars.js';
 
-const loader = new GLTFLoader();
+// The assets are meshopt-compressed: these models arrive with every vertex split, so
+// welding and simplification can do little, and compressing the buffer is what keeps them
+// to a few megabytes. The decoder is one self-contained module - no separate wasm fetch.
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map();                       // url -> Promise<THREE.Group | null>
 
-// Exports arrive at whatever scale and facing they were left in - the 7X is over a
-// hundred thousand units long - so the car is placed by its own bounding box rather than
-// by trusting any transform in the file. Both references are modelled nose toward -Z.
+// Exports arrive at whatever scale and facing they were left in - one of these is 1/100
+// scale, another 1/2.6, and the 7X is over a hundred thousand units long - so the car is
+// placed by its own bounding box rather than by trusting any transform in the file. Which
+// way it faces cannot be measured, so `spec.modelYaw` carries it: the two ZEEKR scans are
+// modelled nose toward -Z and everything else nose toward +Z.
 function place(scene, spec) {
   const box = new THREE.Box3().setFromObject(scene);
   const size = box.getSize(new THREE.Vector3());
   const mid = box.getCenter(new THREE.Vector3());
-  const k = spec.dims.L / size.z;
+  const k = spec.dims.L / Math.max(size.x, size.z);
   scene.scale.setScalar(k);
   scene.position.set(-mid.x * k, -box.min.y * k, -mid.z * k);
-  // The turntable writes the root's rotation every frame, so the half turn that brings
-  // the nose round to +Z has to live on a group of its own underneath it.
+  // The turntable writes the root's rotation every frame, so the turn that brings the
+  // nose round to +Z has to live on a group of its own underneath it.
   const yaw = new THREE.Group();
-  yaw.rotation.y = Math.PI;
+  yaw.rotation.y = (spec.modelYaw || 0) + (size.x > size.z ? Math.PI / 2 : 0);
   yaw.add(scene);
   const root = new THREE.Group();
   root.add(yaw);

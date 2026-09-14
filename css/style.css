@@ -82,7 +82,12 @@ button.back { background: none; border: none; color: var(--muted); padding-left:
 
 /* car select */
 .car-layout { flex: 1; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 clamp(18px, 4vw, 48px) 34px; gap: 24px; }
-.car-list { display: flex; flex-direction: column; gap: 8px; width: 260px; padding-bottom: 4px; }
+/* Fourteen cars no longer fit the screen, so the picker scrolls. */
+.car-list { display: flex; flex-direction: column; gap: 8px; width: 260px; padding-bottom: 4px;
+  max-height: min(66vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.car-list::-webkit-scrollbar { width: 6px; }
+.car-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 .car-chip {
   text-align: left; padding: 11px 16px; border-radius: 10px; cursor: pointer;
   background: var(--panel); border: 1px solid var(--line); color: var(--muted);

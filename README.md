@@ -1,8 +1,9 @@
-# ZEEKR CIRCUIT
+# ZRace
 
-An in-browser 3D racing game: six ZEEKR-inspired electric cars, five circuits from five
-countries, AI opponents, lap timing and a full race weekend flow — all in plain JavaScript
-with [three.js](https://threejs.org/), no build step and no asset files.
+An in-browser 3D racing game: fourteen Chinese cars — BYD, Chery, Geely, Great Wall,
+Xiaomi and ZEEKR — five circuits from five countries, AI opponents, lap timing and a full
+race weekend flow, all in plain JavaScript with [three.js](https://threejs.org/) and no
+build step.
 
 ## Run it
 
@@ -38,12 +39,20 @@ on-screen pedals appear on touch devices.
 
 | Model | Body | Character |
 | --- | --- | --- |
-| ZEEKR X | Compact crossover | Lightest and most agile, but down on power |
-| ZEEKR 007 | Fastback sedan | Quick off the line, strong grip |
+| Xiaomi SU7 Ultra | Electric super saloon | The quickest thing here, by a distance |
+| Yangwang U9 | Electric hypercar | Four motors, lowest and widest of the field |
+| ZEEKR 001 FR | Four-motor flagship | 930 kW, lowered, with a wing |
+| Xiaomi YU7 | Electric crossover | SU7 underneath, far taller on top |
 | ZEEKR 001 | Shooting brake | Long and fast in a straight line |
-| ZEEKR 001 FR | Four-motor flagship | The fast one: 930 kW, lowered, with a wing |
+| BYD Seal | Electric sedan | Battery low in the floor, and it corners like it |
+| ZEEKR 007 | Fastback sedan | Quick off the line, strong grip |
 | ZEEKR 7X | Mid-size SUV | Heavy, stable, forgiving |
+| ZEEKR X | Compact crossover | Lightest and most agile, but down on power |
 | ZEEKR 009 | Luxury MPV | Nearly three tonnes — a challenge to race |
+| Chery Tiggo 8 Pro e+ | Three-row SUV | Seven seats and a plug |
+| Geely Monjaro | Large SUV | High and heavy, hangs on longer than it looks |
+| Geely GC9 | Large sedan | Long bonnet, long boot, big grille |
+| Haval Big Dog | Boxy compact SUV | Square, round-eyed, no interest in aerodynamics |
 
 Each body is a lofted hull. A model carries a table of cross-sections along its length -
 roof line, window line, width and tumblehome at each station - which are interpolated with a
@@ -63,20 +72,26 @@ competitive whatever you drive.
 
 Performance figures are tuned for racing, not taken from the manufacturer.
 
-The X and the 7X are shaped against measurements taken off scanned reference models, so
+Most of the cars are shaped against measurements taken off scanned reference models, so
 their rooflines, beltlines, wheel sizes and ride heights are the real cars' rather than an
-approximation - which is also where the other four got their tail shapes, since every one
-of them was tapering off far too early. The full-resolution reference files are not in
-the repository.
+approximation. `tools/measure_model.py` does the reading: it normalises a model against the
+real car's length, finds the tyres, glass and interior by material name — eight authors,
+eight naming schemes, but everyone labels glass "glass" — and prints the station table to
+paste into `js/cars.js`. `tools/model.html` stands any model on a metre grid so its scale
+and facing can be checked first. The full-resolution reference files are not in the
+repository.
 
-The car-select screen goes one better and puts the scan itself on the turntable for those
-two. It only ever shows one car, standing still, so it can afford what a race cannot: the
-grid stays code-built, and six cars on track come to about 33,000 triangles between them.
-The showroom copies in `assets/cars/` were stripped of their interiors and their four
-spare wheel sets, then welded, simplified and quantised - 391k triangles and 14 MB down to
-81k and 1.8 MB for the X, 486k and 31 MB down to 102k and 2.8 MB for the 7X. They load
-only when you open the screen, the code-built car is on the turntable until one arrives,
-and a download that fails just leaves it there. Credit where it is due:
+The car-select screen goes one better and puts the scan itself on the turntable. It only
+ever shows one car, standing still, so it can afford what a race cannot: the grid stays
+code-built, and six cars on track come to about 33,000 triangles between them.
+`tools/prepare_models.py` builds the showroom copies in `assets/cars/` - interiors and
+spare wheel sets come out, then dedup, join, weld, simplify, a texture resize to WebP and
+meshopt compression. They load only when you open the screen, the code-built car is on the
+turntable until one arrives, and a download that fails just leaves it there.
+
+The reference models are third-party assets. The two ZEEKRs are CC-BY-4.0 and their credit
+is below; **the other six still need their sources and licences recorded here** before this
+is published anywhere.
 
 > This work is based on "Zeekr X 2025"
 > (https://sketchfab.com/3d-models/zeekr-x-2025-3be1c6c3848e4148995b9b7cc22cd480) and
@@ -140,5 +155,6 @@ console.log(p.length, p.cornerCount(), p.bounds());
 
 ## Notes
 
-Unofficial fan-made game. Not affiliated with, or endorsed by, ZEEKR; the car models are
-original low-poly interpretations rather than manufacturer data.
+Unofficial fan-made game. Not affiliated with, or endorsed by, BYD, Chery, Geely, Great
+Wall or ZEEKR. The cars raced on track are original low-poly interpretations; performance
+figures are tuned for racing rather than taken from manufacturer data.
