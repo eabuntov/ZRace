@@ -454,17 +454,26 @@ class Game {
     if (racing) this.raceTime += dt;
 
     for (const car of cars) {
-      let input;
-      if (car.ai) {
-        const gap = this.player ? car.dist - this.player.dist : 0;
-        const rubber = car === this.player ? 0 : (gap > 140 ? -diff.rubber : gap < -140 ? diff.rubber : 0);
-        input = car.ai.update(dt, cars, rubber);
-      } else {
-        input = this.input.state;
+      // The grid sits on the brakes until the lights go out, and the AI is not asked for an
+      // input before then. Its answer would be thrown away anyway, and asking has a side
+      // effect: a driver treats a car that has not moved for three seconds as stuck and
+      // respawns it onto the centreline - which is precisely what a car waiting on the grid
+      // looks like. That fired around the third red light and shuffled the grid.
+      let input = { throttle: 0, brake: 1, steer: 0, handbrake: true };
+      if (racing) {
+        if (car.ai) {
+          const gap = this.player ? car.dist - this.player.dist : 0;
+          const rubber = car === this.player ? 0 : (gap > 140 ? -diff.rubber : gap < -140 ? diff.rubber : 0);
+          input = car.ai.update(dt, cars, rubber);
+        } else {
+          input = this.input.state;
+        }
       }
-      if (!racing) input = { throttle: 0, brake: 1, steer: 0, handbrake: true };
       if (car.race.finished && car.ai) input = { ...input, throttle: input.throttle * 0.5 };
       car.update(dt, input);
+      // and no stuck time is banked while waiting, so nobody is a second from being
+      // respawned the moment the race actually starts
+      if (!racing) car.stuck = 0;
     }
     resolveCollisions(cars);
 
