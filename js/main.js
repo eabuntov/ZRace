@@ -27,6 +27,15 @@ const CAM_MODES = [
 
 const STORE = 'zeekrcircuit.v1';
 
+// Hand the keyboard back to the game. Whatever the player last clicked still has focus -
+// the RESUME button, a menu button, the name box - and a focused element sees the key
+// first: the name box swallows W outright, and a button treats Space as a click. Racing
+// starts, and resumes, with nothing in the page holding on to it.
+const takeKeyboard = () => {
+  const el = document.activeElement;
+  if (el && el !== document.body && typeof el.blur === 'function') el.blur();
+};
+
 class Game {
   constructor() {
     this.canvas = document.getElementById('view');
@@ -350,6 +359,13 @@ class Game {
     this.ui.hudVisible(true);
     this.ui.show(null);
     this.ui.clearMessage();
+    // Crossing the finish line takes the controls away, and pausing does too. Both are
+    // undone from one place - here - because a new race is the one moment they must be
+    // live again no matter which way it was started: race again, a different car, or
+    // restart from the pause menu. Leaving it to whoever disabled them is how a race
+    // after a finished race ended up with a car that ignored the throttle.
+    this.input.enabled = true;
+    takeKeyboard();
     this.input.clear();
     this.audio.start();
     document.body.classList.add('racing');
@@ -417,6 +433,7 @@ class Game {
     if (this.state !== 'paused') return;
     this.state = this.prevState || 'racing';
     this.input.enabled = true;
+    takeKeyboard();
     this.input.clear();
     this.audio.start();
     document.body.classList.add('racing');
