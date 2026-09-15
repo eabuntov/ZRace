@@ -50,10 +50,14 @@ MODELS = {
     # Only the light-flare billboard comes out of the GC9. The two `detach_` nodes are
     # the bonnet and the rear bumper - a game-ready export names the panels it can knock
     # off in a crash that way - and dropping them left voids at both ends of the car.
+    # Every `lights_*` node in the GC9 is an additive glow volume - 1.87 x 0.86 x 0.78 m
+    # of it around the tail lamps alone. glTF has no additive blend, so they export opaque
+    # and render as black holes round the lights. The lamps themselves are painted into
+    # the body texture and look right once the glows are gone. The number plate goes too:
+    # it carries the watermark of the game this model was ripped out of.
     'geely_gc9':      ('geely_gc9.glb',
-                       ['lights_position_front_and_back_glows.003',
-                        # the number plate is the watermark of the mobile game this model
-                        # was ripped out of - it is one flat quad and nothing else uses it
+                       ['lights_brakes.003', 'lights_position_back.003',
+                        'lights_position_front_and_back.003', 'lights_reverse.001',
                         'chassis_licenseplate'], (), 1.0, 1024),
     'geely_monjaro':  ('geely.glb', [], (), 0.7, 1024),
     'chery_tiggo8':   ('2022_chery_tiggo_8_pro_e.glb', [], INTERIOR, 0.4, 1024),
