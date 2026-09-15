@@ -47,9 +47,11 @@ MODELS = {
     'zeekr_7x':       ('zeekr_7x_2025.glb', ['carplane', 'INS'], (), 0.5, 2048),
     'byd_seal':       ('2024_byd_seal.glb', [], INTERIOR, 0.4, 1024),
     'yangwang_u9':    ('2024_byd_yangwang_u9.glb', [], INTERIOR, 0.85, 1024),
-    'geely_gc9':      ('geely_gc9.glb', ['detach_bumper_B_6', 'detach_hood_45',
-                                         'lights_position_front_and_back_glows.003'],
-                       (), 1.0, 1024),
+    # Only the light-flare billboard comes out of the GC9. The two `detach_` nodes are
+    # the bonnet and the rear bumper - a game-ready export names the panels it can knock
+    # off in a crash that way - and dropping them left voids at both ends of the car.
+    'geely_gc9':      ('geely_gc9.glb',
+                       ['lights_position_front_and_back_glows.003'], (), 1.0, 1024),
     'geely_monjaro':  ('geely.glb', [], (), 0.7, 1024),
     'chery_tiggo8':   ('2022_chery_tiggo_8_pro_e.glb', [], INTERIOR, 0.4, 1024),
     'haval_big_dog':  ('haval_ii_big_dog_2024.glb', [], INTERIOR, 0.45, 1024),
