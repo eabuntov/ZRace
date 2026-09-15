@@ -51,7 +51,10 @@ MODELS = {
     # the bonnet and the rear bumper - a game-ready export names the panels it can knock
     # off in a crash that way - and dropping them left voids at both ends of the car.
     'geely_gc9':      ('geely_gc9.glb',
-                       ['lights_position_front_and_back_glows.003'], (), 1.0, 1024),
+                       ['lights_position_front_and_back_glows.003',
+                        # the number plate is the watermark of the mobile game this model
+                        # was ripped out of - it is one flat quad and nothing else uses it
+                        'chassis_licenseplate'], (), 1.0, 1024),
     'geely_monjaro':  ('geely.glb', [], (), 0.7, 1024),
     'chery_tiggo8':   ('2022_chery_tiggo_8_pro_e.glb', [], INTERIOR, 0.4, 1024),
     'haval_big_dog':  ('haval_ii_big_dog_2024.glb', [], INTERIOR, 0.45, 1024),
