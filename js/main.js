@@ -638,7 +638,7 @@ class Game {
     this.camera.updateProjectionMatrix();
   }
 
-  // Debug / test entry: ?track=suzuka&car=001fr&laps=1&opp=3&auto=1&go=1
+  // Debug / test entry: ?track=suzuka&car=su7&laps=1&opp=3&auto=1&go=1
   bootFromQuery() {
     const q = new URLSearchParams(location.search);
     if (!q.toString()) { this.refreshShowroomCar(); return; }
@@ -653,7 +653,10 @@ class Game {
     this.refreshShowroomCar();
     this.ui.buildOptions(this.settings);
     this.ui.selectTrack(this.settings.trackIndex);
+    // selectCar only moves the highlight; the panel was built from the saved carIndex,
+    // so it has to be told as well or it describes a different car than the one selected
     this.ui.selectCar(this.settings.carIndex);
+    this.ui.updateCarInfo(CARS[this.settings.carIndex]);
     if (q.get('go') === '1') setTimeout(() => this.startRace(), 50);
   }
 }

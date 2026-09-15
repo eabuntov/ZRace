@@ -1,9 +1,9 @@
 # ZRace
 
-An in-browser 3D racing game: fourteen Chinese cars — BYD, Chery, Geely, Great Wall,
-Xiaomi and ZEEKR — five circuits from five countries, AI opponents, lap timing and a full
-race weekend flow, all in plain JavaScript with [three.js](https://threejs.org/) and no
-build step.
+An in-browser 3D racing game: ten Chinese cars — BYD, Chery, Geely, Great Wall, Xiaomi
+and ZEEKR — five circuits from five countries, AI opponents, lap timing and a full race
+weekend flow, all in plain JavaScript with [three.js](https://threejs.org/) and no build
+step.
 
 ## Run it
 
@@ -41,18 +41,17 @@ on-screen pedals appear on touch devices.
 | --- | --- | --- |
 | Xiaomi SU7 Ultra | Electric super saloon | The quickest thing here, by a distance |
 | Yangwang U9 | Electric hypercar | Four motors, lowest and widest of the field |
-| ZEEKR 001 FR | Four-motor flagship | 930 kW, lowered, with a wing |
 | Xiaomi YU7 | Electric crossover | SU7 underneath, far taller on top |
-| ZEEKR 001 | Shooting brake | Long and fast in a straight line |
 | BYD Seal | Electric sedan | Battery low in the floor, and it corners like it |
-| ZEEKR 007 | Fastback sedan | Quick off the line, strong grip |
 | ZEEKR 7X | Mid-size SUV | Heavy, stable, forgiving |
 | ZEEKR X | Compact crossover | Lightest and most agile, but down on power |
-| ZEEKR 009 | Luxury MPV | Nearly three tonnes — a challenge to race |
 | Chery Tiggo 8 Pro e+ | Three-row SUV | Seven seats and a plug |
 | Geely Monjaro | Large SUV | High and heavy, hangs on longer than it looks |
 | Geely GC9 | Large sedan | Long bonnet, long boot, big grille |
 | Haval Big Dog | Boxy compact SUV | Square, round-eyed, no interest in aerodynamics |
+
+Every car on the list has a scanned reference model behind it; that is now the entry price
+for being in the game, so the six-strong ZEEKR line-up is down to the two that do.
 
 Each body is a lofted hull. A model carries a table of cross-sections along its length -
 roof line, window line, width and tumblehome at each station - which are interpolated with a
@@ -137,7 +136,7 @@ tools/cars.html     dev page: model sheet (?view=side | front | rear, ?only=<id>
 The page accepts query parameters so you can jump straight into a race:
 
 ```
-?track=suzuka&car=001fr&laps=1&opp=3&diff=hard&go=1
+?track=suzuka&car=su7&laps=1&opp=3&diff=hard&go=1
 ```
 
 `auto=1` hands your car to the AI, which is useful for watching a lap or testing a track.

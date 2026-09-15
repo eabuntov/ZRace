@@ -33,12 +33,12 @@ INTERIOR = ('interior', 'int_', 'console', 'dash', 'seat', 'chair', 'neishi', 'c
 
 # out name -> (source, node names to drop, material fragments to drop, ratio, texture size)
 MODELS = {
+    # Do not touch the wheel groups on these two. They look like alternate rim designs
+    # stacked in one place and they are not: dropping four of the X's five `lungu` nodes
+    # took three of its wheels with them and left the car standing on one.
     'zeekr_x':        ('zeekr_x_2025.glb',
-                       ['floor', 'IN', 'seat_high', 'seat_low',
-                        'lungu001', 'lungu002', 'lungu003', 'lungu005'], (), 0.5, 2048),
-    'zeekr_7x':       ('zeekr_7x_2025.glb',
-                       ['carplane', 'INS', '19inch-kongqi', '20inch_duofu',
-                        '19inch-duofuheiyao', '20inch_duofuheiyao'], (), 0.5, 2048),
+                       ['floor', 'IN', 'seat_high', 'seat_low'], (), 0.5, 2048),
+    'zeekr_7x':       ('zeekr_7x_2025.glb', ['carplane', 'INS'], (), 0.5, 2048),
     'byd_seal':       ('2024_byd_seal.glb', [], INTERIOR, 0.4, 1024),
     'yangwang_u9':    ('2024_byd_yangwang_u9.glb', [], INTERIOR, 0.85, 1024),
     'geely_gc9':      ('geely_gc9.glb', ['detach_bumper_B_6', 'detach_hood_45',

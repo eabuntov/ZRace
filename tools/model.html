@@ -26,6 +26,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const q = new URLSearchParams(location.search);
 const src = q.get('src');
@@ -68,7 +69,8 @@ const info = document.getElementById('info');
 if (!src) {
   info.textContent = 'no ?src= given';
 } else {
-  new GLTFLoader().load(src, (gltf) => {
+  // built assets are meshopt-compressed, so the decoder has to be registered here too
+  new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(src, (gltf) => {
     const root = gltf.scene;
     scene.add(root);
     const box = new THREE.Box3().setFromObject(root);
