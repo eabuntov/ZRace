@@ -22,7 +22,7 @@
 </head>
 <body>
 <div id="info">loading…</div>
-<div id="hint">?src=../models/x.glb · &view=side|front|top · &wire=1 · drag to orbit</div>
+<div id="hint">?src=../models/x.glb · &view=side|front|top · &hide=floor · &wire=1 · drag to orbit</div>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -72,6 +72,14 @@ if (!src) {
   // built assets are meshopt-compressed, so the decoder has to be registered here too
   new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(src, (gltf) => {
     const root = gltf.scene;
+    // &hide=floor,carplane - reference models often sit on a huge ground plane, which
+    // otherwise swallows the framing and every measurement taken off the bounding box
+    const hide = (q.get('hide') || '').split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
+    if (hide.length) {
+      const doomed = [];
+      root.traverse((o) => { if (hide.some((w) => o.name.toLowerCase().includes(w))) doomed.push(o); });
+      for (const o of doomed) o.removeFromParent();
+    }
     scene.add(root);
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());

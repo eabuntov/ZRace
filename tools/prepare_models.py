@@ -22,6 +22,11 @@ import subprocess
 import sys
 import tempfile
 
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from measure_model import accessor, node_matrix          # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 GLTF = ['npx', '-y', '@gltf-transform/cli@4.5.0']
@@ -33,11 +38,12 @@ INTERIOR = ('interior', 'int_', 'console', 'dash', 'seat', 'chair', 'neishi', 'c
 
 # out name -> (source, node names to drop, material fragments to drop, ratio, texture size)
 MODELS = {
-    # Do not touch the wheel groups on these two. They look like alternate rim designs
-    # stacked in one place and they are not: dropping four of the X's five `lungu` nodes
-    # took three of its wheels with them and left the car standing on one.
+    # Circle001/002 are ~200-triangle construction primitives - the hinge axes the hood
+    # and tailgate were modelled around - left in the export and shaded matte black. One
+    # of them stands 230 mm above the roof.
     'zeekr_x':        ('zeekr_x_2025.glb',
-                       ['floor', 'IN', 'seat_high', 'seat_low'], (), 0.5, 2048),
+                       ['floor', 'IN', 'seat_high', 'seat_low',
+                        'Circle001', 'Circle002'], (), 0.5, 2048),
     'zeekr_7x':       ('zeekr_7x_2025.glb', ['carplane', 'INS'], (), 0.5, 2048),
     'byd_seal':       ('2024_byd_seal.glb', [], INTERIOR, 0.4, 1024),
     'yangwang_u9':    ('2024_byd_yangwang_u9.glb', [], INTERIOR, 0.85, 1024),
@@ -51,10 +57,112 @@ MODELS = {
     'xiaomi_yu7':     ('2025_xiaomi_yu7.glb', [], INTERIOR, 0.45, 1024),
 }
 
+# The X's reference model carries five alternate wheel sets and not one of them is
+# complete: each holds a real wheel at one corner, two odd discs at two others, and
+# nothing at the fourth. Keeping them all piles five part-sets into a black mass; keeping
+# one leaves the car on a single wheel. So take the one good wheel and put it on all four
+# corners here. `wheel` is the node to copy, `drop` goes once the copies are made.
+WHEEL_FIX = {
+    'zeekr_x': {'wheel': 't1', 'drop': 'Tire'},
+}
+
 JSON_CHUNK, BIN_CHUNK = 0x4E4F534A, 0x004E4942
 
 
-def strip(src, dst, drop, dropMats=()):
+def world_matrices(g):
+    """-> {node index: 4x4 world matrix}, walking every scene root."""
+    out = {}
+
+    def walk(i, m):
+        m = m @ node_matrix(g['nodes'][i])
+        out[i] = m
+        for c in g['nodes'][i].get('children', []):
+            walk(c, m)
+
+    kids = set()
+    for n in g['nodes']:
+        kids.update(n.get('children', []))
+    for r in [i for i in range(len(g['nodes'])) if i not in kids]:
+        walk(r, np.eye(4))
+    return out
+
+
+def subtree_points(g, blob, i, world, skip=()):
+    """World-space vertices of a node and everything under it."""
+    pts = []
+
+    def walk(j):
+        nd = g['nodes'][j]
+        if any(w.lower() in nd.get('name', '').lower() for w in skip):
+            return
+        if 'mesh' in nd:
+            m = world[j]
+            for pr in g['meshes'][nd['mesh']].get('primitives', []):
+                v = accessor(g, blob, pr['attributes']['POSITION'])
+                pts.append((m[:3, :3] @ v.T).T + m[:3, 3])
+        for c in nd.get('children', []):
+            walk(c)
+
+    walk(i)
+    return np.vstack(pts) if pts else np.zeros((0, 3))
+
+
+def clone_subtree(g, i):
+    """Duplicate a node and its descendants. Meshes are referenced, not copied."""
+    src = g['nodes'][i]
+    new = {k: v for k, v in src.items() if k != 'children'}
+    idx = len(g['nodes'])
+    g['nodes'].append(new)
+    if 'children' in src:
+        new['children'] = [clone_subtree(g, c) for c in src['children']]
+    return idx
+
+
+def repair_wheels(g, blob, cfg):
+    """Copy one good wheel onto all four corners, mirroring its position about the centre
+    of the car. The right-hand copies are turned through 180 degrees rather than scaled by
+    -1: a negative scale flips the winding and lights the wheel inside out."""
+    names = {n.get('name', ''): i for i, n in enumerate(g['nodes'])}
+    wi = names.get(cfg['wheel'])
+    if wi is None:
+        print(f"    warning: no node named {cfg['wheel']}, wheels left alone")
+        return 0
+    world = world_matrices(g)
+    # the car's own centre, taken off every mesh that is not the ground plane
+    allp = []
+    for i, nd in enumerate(g['nodes']):
+        if 'mesh' not in nd or any(w in nd.get('name', '').lower() for w in ('floor', 'carplane')):
+            continue
+        m = world[i]
+        for pr in g['meshes'][nd['mesh']].get('primitives', []):
+            v = accessor(g, blob, pr['attributes']['POSITION'])
+            allp.append((m[:3, :3] @ v.T).T + m[:3, 3])
+    car = np.vstack(allp)
+    C = (car.min(0) + car.max(0)) / 2
+
+    wp = subtree_points(g, blob, wi, world)
+    W = (wp.min(0) + wp.max(0)) / 2
+    M = world[wi]
+    flip = np.diag([-1.0, 1.0, -1.0, 1.0])        # 180 degrees about Y
+
+    made = []
+    for sx in (1, -1):
+        for sz in (1, -1):
+            T = np.array([C[0] + sx * (W[0] - C[0]), W[1], C[2] + sz * (W[2] - C[2])])
+            R = flip if sx < 0 else np.eye(4)
+            Mn = np.eye(4)
+            Mn[:3, 3] = T - (R[:3, :3] @ W)
+            Mn = Mn @ R @ M
+            holder = {'name': f'{cfg["wheel"]}_corner_{sx}_{sz}',
+                      'matrix': list(Mn.T.flatten()),
+                      'children': [clone_subtree(g, c) for c in g['nodes'][wi].get('children', [])]}
+            g['nodes'].append(holder)
+            made.append(len(g['nodes']) - 1)
+    g['scenes'][0]['nodes'].extend(made)
+    return len(made)
+
+
+def strip(src, dst, drop, dropMats=(), wheelFix=None):
     """Unlink node subtrees by name, and drop primitives whose material matches. Only the
     JSON chunk is touched - the orphaned meshes and accessors are left for `prune`."""
     with open(src, 'rb') as f:
@@ -64,7 +172,12 @@ def strip(src, dst, drop, dropMats=()):
             clen, ctype = struct.unpack('<II', f.read(8))
             chunks.append([ctype, f.read(clen)])
     ji = next(i for i, c in enumerate(chunks) if c[0] == JSON_CHUNK)
+    blob = next((c[1] for c in chunks if c[0] == BIN_CHUNK), b'')
     g = json.loads(chunks[ji][1].decode('utf-8'))
+    wheels = 0
+    if wheelFix:
+        wheels = repair_wheels(g, blob, wheelFix)
+        drop = list(drop) + [wheelFix['drop']]
     gone = {i for i, n in enumerate(g['nodes'])
             if any(d.lower() == n.get('name', '').lower() for d in drop)}
     missing = [d for d in drop
@@ -108,7 +221,7 @@ def strip(src, dst, drop, dropMats=()):
     with open(dst, 'wb') as f:
         f.write(struct.pack('<III', 0x46546C67, version, 12 + len(body)))
         f.write(body)
-    return len(gone), cut
+    return len(gone), cut, wheels
 
 
 def run(args):
@@ -128,9 +241,11 @@ def prepare(name, src, drop, dropMats, ratio, tex, outdir, srcdir):
     print(f'  {name}  <- {src} ({os.path.getsize(source) / 1e6:.1f} MB)')
     with tempfile.TemporaryDirectory() as tmp:
         step = os.path.join(tmp, 'a.glb')
-        if drop or dropMats:
-            n, cut = strip(source, step, drop, dropMats)
-            print(f'    stripped {n} nodes, {cut} primitives')
+        fix = WHEEL_FIX.get(name)
+        if drop or dropMats or fix:
+            n, cut, wheels = strip(source, step, drop, dropMats, fix)
+            print(f'    stripped {n} nodes, {cut} primitives'
+                  + (f', rebuilt {wheels} wheels' if wheels else ''))
         else:
             step = source
         # No `join` here, however tempting: it collapses these scenes to a handful of
