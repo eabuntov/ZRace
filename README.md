@@ -99,6 +99,26 @@ away. The Geely Monjaro is the exception: it arrived as a single mesh with one m
 covering glass and wheels as well as bodywork, so it cannot be repainted without tinting the
 whole car, and the chips leave it alone.
 
+On track the player's car races its scan too, where the model allows it; the opponents stay
+code-built, which is what keeps the cost down. A six-car Monza grid goes from 304 draw calls
+and 256k triangles to 406 and 478k - the one car you look at for the whole race, for about a
+third more draw calls.
+
+Whether a scan can race depends on whether its wheels come apart. `js/carRig.js` finds them
+by name, sorts them into corners, re-parents them under pivots of its own and then checks
+the result against the car it is supposed to be: four wheels of roughly the right radius,
+evenly spaced about the centreline, the right wheelbase apart. Five of the ten pass. The
+others merge all four wheels into one mesh apiece - the Monjaro is a single mesh for the
+whole car - and there is no way to turn one corner of those without turning the rest, so
+they race the code-built car instead and say so in the console. A scanned body sliding on
+wheels that do not turn would look far worse than a simpler car that behaves.
+
+Glass is the other thing that made this affordable. Most of these models tint their windows
+with `KHR_materials_transmission`, and three.js pays for that by drawing the whole scene a
+second time into a transmission buffer, every frame. On one car that alone was the
+difference between 412 draw calls and 790. `tools/prepare_models.py` turns those materials
+into ordinary tinted alpha glass, which at racing speed looks the same and costs nothing.
+
 The reference models are third-party assets. The two ZEEKRs are CC-BY-4.0 and their credit
 is below; **the other six still need their sources and licences recorded here** before this
 is published anywhere.

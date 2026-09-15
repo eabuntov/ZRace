@@ -40,6 +40,10 @@ function place(scene, spec) {
   const root = new THREE.Group();
   root.add(yaw);
   root.userData.shared = true;                 // geometry is cached - never dispose it
+  // Mark the geometry itself as well. The race tears its scene down by disposing every
+  // geometry in it, and a scan racing as the player's car would take the cached original
+  // with it - leaving every later view of that car empty.
+  root.traverse((o) => { if (o.isMesh) o.geometry.userData.shared = true; });
   return root;
 }
 

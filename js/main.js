@@ -5,6 +5,7 @@ import { TrackPath } from './trackPath.js';
 import { TrackWorld } from './trackBuild.js';
 import { CARS, PAINTS, buildCar, animateCar } from './cars.js';
 import { loadShowroomCar, repaintShowroomCar } from './carModel.js';
+import { rigScan } from './carRig.js';
 import { Vehicle, resolveCollisions } from './physics.js';
 import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
@@ -321,6 +322,7 @@ class Game {
       v.mesh = buildCar(spec, paint, { number: isPlayer ? 1 : i + 2 });
       v.mesh.rotation.order = 'YXZ';
       this.raceScene.add(v.mesh);
+      if (isPlayer) this.raceScanForPlayer(v, paint);
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(spec.dims.L * 1.25, spec.dims.W * 2.0), shadowMat);
       sh.rotation.x = -Math.PI / 2;
       this.raceScene.add(sh);
@@ -358,11 +360,35 @@ class Game {
     console.log(`[zrace] ${def.name} built in ${Math.round(performance.now() - t0)} ms`);
   }
 
+  // The player's car is the one on screen for the whole race, so it gets the scan; the
+  // opponents stay code-built, which is what keeps the draw calls down. The scan has to be
+  // rigged first - a scanned body on wheels that do not turn is worse than a simpler car
+  // that behaves - and if that fails the built car simply stays where it is.
+  raceScanForPlayer(v, paintHex) {
+    const race = (this.raceId = (this.raceId || 0) + 1);
+    loadShowroomCar(v.spec, paintHex).then((scan) => {
+      if (!scan || race !== this.raceId || !this.cars || !this.cars.includes(v)) return;
+      const rig = rigScan(scan, v.spec);
+      if (!rig) {
+        console.info(`[zrace] ${v.spec.name}: scan has no separable wheels, racing the built car`);
+        return;
+      }
+      scan.userData = { ...scan.userData, ...rig };
+      scan.rotation.order = 'YXZ';
+      scan.position.copy(v.mesh.position);
+      scan.quaternion.copy(v.mesh.quaternion);
+      this.raceScene.remove(v.mesh);
+      v.mesh.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
+      v.mesh = scan;
+      this.raceScene.add(scan);
+    });
+  }
+
   endRace(clear) {
     if (this.world) { this.world.dispose(); this.world = null; }
     if (this.raceScene) {
       this.raceScene.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
+        if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
       });
       this.raceScene = null;
     }

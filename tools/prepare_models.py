@@ -77,6 +77,41 @@ WHEEL_FIX = {
 
 JSON_CHUNK, BIN_CHUNK = 0x4E4F534A, 0x004E4942
 
+# Glass on most of these models uses KHR_materials_transmission, and three.js pays for
+# that by rendering the whole scene a second time into a transmission buffer - every
+# frame, for window glass. On one car that took a race frame from 412 draw calls to 790.
+# Ordinary tinted alpha glass is worth far more than the refraction is at racing speed.
+GLASS = {'alphaMode': 'BLEND',
+         'baseColorFactor': [0.07, 0.09, 0.11, 0.62],
+         'metallicFactor': 0.5, 'roughnessFactor': 0.12}
+
+
+def plain_glass(g):
+    """Turn transmissive materials into plain tinted glass. Returns how many changed."""
+    gone = 0
+    for mat in g.get('materials', []):
+        ext = mat.get('extensions') or {}
+        if 'KHR_materials_transmission' not in ext:
+            continue
+        ext.pop('KHR_materials_transmission', None)
+        ext.pop('KHR_materials_volume', None)          # meaningless without transmission
+        ext.pop('KHR_materials_ior', None)
+        if not ext:
+            mat.pop('extensions', None)
+        mat['alphaMode'] = GLASS['alphaMode']
+        pbr = mat.setdefault('pbrMetallicRoughness', {})
+        pbr['baseColorFactor'] = list(GLASS['baseColorFactor'])
+        pbr['metallicFactor'] = GLASS['metallicFactor']
+        pbr['roughnessFactor'] = GLASS['roughnessFactor']
+        gone += 1
+    dead = ('KHR_materials_transmission', 'KHR_materials_volume')
+    for key in ('extensionsUsed', 'extensionsRequired'):
+        if key in g:
+            g[key] = [e for e in g[key] if e not in dead]
+            if not g[key]:
+                del g[key]
+    return gone
+
 
 def world_matrices(g):
     """-> {node index: 4x4 world matrix}, walking every scene root."""
@@ -203,6 +238,7 @@ def strip(src, dst, drop, dropMats=(), wheelFix=None):
     for i in gone:
         g['nodes'][i].pop('mesh', None)
         g['nodes'][i].pop('children', None)
+    glass = plain_glass(g)
     cut = 0
     if dropMats:
         names = [m.get('name', '') for m in g.get('materials', [])]
@@ -230,7 +266,7 @@ def strip(src, dst, drop, dropMats=(), wheelFix=None):
     with open(dst, 'wb') as f:
         f.write(struct.pack('<III', 0x46546C67, version, 12 + len(body)))
         f.write(body)
-    return len(gone), cut, wheels
+    return len(gone), cut, wheels, glass
 
 
 def run(args):
@@ -251,12 +287,10 @@ def prepare(name, src, drop, dropMats, ratio, tex, outdir, srcdir):
     with tempfile.TemporaryDirectory() as tmp:
         step = os.path.join(tmp, 'a.glb')
         fix = WHEEL_FIX.get(name)
-        if drop or dropMats or fix:
-            n, cut, wheels = strip(source, step, drop, dropMats, fix)
-            print(f'    stripped {n} nodes, {cut} primitives'
-                  + (f', rebuilt {wheels} wheels' if wheels else ''))
-        else:
-            step = source
+        n, cut, wheels, glass = strip(source, step, drop, dropMats, fix)
+        print(f'    stripped {n} nodes, {cut} primitives'
+              + (f', rebuilt {wheels} wheels' if wheels else '')
+              + (f', {glass} glass materials made plain' if glass else ''))
         # No `join` here, however tempting: it collapses these scenes to a handful of
         # meshes and bakes the wrapper transforms wrongly on at least the ZEEKR X, which
         # came back 3.7 m tall. Meshopt does the size work instead.
