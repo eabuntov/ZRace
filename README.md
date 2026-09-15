@@ -10,10 +10,13 @@ step.
 ES modules need to be served over HTTP (opening `index.html` from disk will not work):
 
 ```bash
-python -m http.server 8000
+python tools/serve.py
 ```
 
-Then open <http://localhost:8000/>.
+Then open <http://localhost:8000/>. `python -m http.server` works too, but it sends no
+cache headers, so a browser will happily keep serving the module or stylesheet it fetched
+before your last edit - and a fresh `main.js` against a stale `carModel.js` fails in a way
+that reads like a code error. `tools/serve.py` is the same server with caching turned off.
 
 Three.js is loaded from a CDN via the import map in `index.html`, so the first load needs
 an internet connection. Everything else — road surfaces, kerbs, barriers, crowds, car
@@ -87,6 +90,14 @@ code-built, and six cars on track come to about 33,000 triangles between them.
 spare wheel sets come out, then dedup, join, weld, simplify, a texture resize to WebP and
 meshopt compression. They load only when you open the screen, the code-built car is on the
 turntable until one arrives, and a download that fails just leaves it there.
+
+Picking a paint recolours the car where it stands, in a fraction of a millisecond - the
+colour is one material away and the scan never reloads. Which material carries the paint is
+up to whoever built the model (`car_paint_bai`, `Car_Paint`, `CarPaint`, or just `body`), so
+it is matched by name, with `spec.paintMat` to name it outright where the name gives nothing
+away. The Geely Monjaro is the exception: it arrived as a single mesh with one material
+covering glass and wheels as well as bodywork, so it cannot be repainted without tinting the
+whole car, and the chips leave it alone.
 
 The reference models are third-party assets. The two ZEEKRs are CC-BY-4.0 and their credit
 is below; **the other six still need their sources and licences recorded here** before this

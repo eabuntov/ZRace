@@ -166,7 +166,7 @@ export const CARS = [
       [-2.54, 1.06, 1.00, 0.74, 0.97],
     ],
     style: { front: 'waterfall', chrome: true },
-    model: 'assets/cars/geely_gc9.glb',
+    model: 'assets/cars/geely_gc9.glb', paintMat: 'Material.001',
     paint: 2,
   },
   {

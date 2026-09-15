@@ -4,7 +4,7 @@ import { TRACKS } from './tracks.js';
 import { TrackPath } from './trackPath.js';
 import { TrackWorld } from './trackBuild.js';
 import { CARS, PAINTS, buildCar, animateCar } from './cars.js';
-import { loadShowroomCar } from './carModel.js';
+import { loadShowroomCar, repaintShowroomCar } from './carModel.js';
 import { Vehicle, resolveCollisions } from './physics.js';
 import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
@@ -236,7 +236,14 @@ class Game {
   pickPaint(i) {
     this.settings.paintIndex = i;
     this.ui.selectPaint(i);
-    this.refreshShowroomCar();
+    // A scan on the turntable is recoloured where it stands - the colour is one material
+    // away, and reloading and re-placing a car to change it is work for nothing. The
+    // code-built car bakes its paint in at build time, so that one does need rebuilding.
+    if (this.showCar && this.showCar.userData.shared) {
+      repaintShowroomCar(this.showCar, PAINTS[i].hex);
+    } else {
+      this.refreshShowroomCar();
+    }
     this.audio.click();
     this.save();
   }

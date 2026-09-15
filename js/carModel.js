@@ -43,22 +43,63 @@ function place(scene, spec) {
   return root;
 }
 
-// The paint chips have to keep working, so the body colour is swapped on a clone of the
-// paint material; every other material is shared with the cached scene untouched.
-function repaint(root, paint) {
+// Which material carries the paint is entirely up to whoever built the model:
+// car_paint_bai, Car_Paint, CarPaint, ..._Carpaint, or just `body`. Where the name gives
+// nothing away - the GC9 calls it Material.001 - `spec.paintMat` names it outright.
+const PAINT_MAT = /car[\s_]?paint|^body$/i;
+
+function isPaint(mat, spec) {
+  const name = mat.name || '';
+  return spec.paintMat ? name === spec.paintMat : PAINT_MAT.test(name);
+}
+
+// The body colour is swapped on a clone, so the cached scene keeps its own materials and
+// every other part of the car goes on sharing them. One clone is made per material rather
+// than per mesh: a dozen meshes wear the paint and they should stay one material between
+// them. The clones are marked so the colour can be changed again later without reloading.
+function repaint(root, spec, paint) {
+  const clones = new Map();
   root.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     const many = Array.isArray(o.material);
     const mats = (many ? o.material : [o.material]).map((m) => {
-      if (!/car_paint/i.test(m.name || '')) return m;
-      const c = m.clone();
-      c.color = new THREE.Color(paint.hex);
-      c.metalness = paint.matte ? 0.2 : 0.6;
-      c.roughness = paint.matte ? 0.55 : 0.18;
-      return c;
+      if (!isPaint(m, spec)) return m;
+      if (!clones.has(m)) {
+        const c = m.clone();
+        c.userData = { ...c.userData, zracePaint: true };
+        clones.set(m, c);
+      }
+      return clones.get(m);
     });
     o.material = many ? mats : mats[0];
   });
+  applyPaint(root, paint);
+  return clones.size;
+}
+
+function applyPaint(root, paint) {
+  let n = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    for (const m of [].concat(o.material)) {
+      if (!m.userData || !m.userData.zracePaint) continue;
+      m.color.set(paint.hex);
+      m.metalness = paint.matte ? 0.2 : 0.6;
+      m.roughness = paint.matte ? 0.55 : 0.18;
+      m.needsUpdate = true;
+      n++;
+    }
+  });
+  return n;
+}
+
+// Recolour a car already standing on the turntable. Returns how many materials changed, so
+// a caller can tell the difference between "done" and "this scan has no separable paint" -
+// the Monjaro is one mesh with one material covering glass and wheels as well as bodywork,
+// and tinting that would tint the whole car.
+export function repaintShowroomCar(root, paintHex) {
+  const paint = PAINTS.find((p) => p.hex === paintHex) || PAINTS[0];
+  return applyPaint(root, paint);
 }
 
 export function loadShowroomCar(spec, paintHex) {
@@ -75,7 +116,7 @@ export function loadShowroomCar(spec, paintHex) {
     if (!scene) return null;
     const root = place(scene.clone(true), spec);
     root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-    repaint(root, PAINTS.find((p) => p.hex === paintHex) || PAINTS[spec.paint]);
+    repaint(root, spec, PAINTS.find((p) => p.hex === paintHex) || PAINTS[spec.paint]);
     return root;
   });
 }
