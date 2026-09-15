@@ -22,6 +22,31 @@ Three.js is loaded from a CDN via the import map in `index.html`, so the first l
 an internet connection. Everything else — road surfaces, kerbs, barriers, crowds, car
 paint, the sky — is generated in code at run time.
 
+## Deploy it
+
+On a fresh Ubuntu machine, with the repo cloned:
+
+```bash
+sudo tools/deploy.sh
+```
+
+That installs nginx, publishes `index.html`, `css/`, `js/` and `assets/` to `/var/www/zrace`
+and writes the site config. For a host name and a certificate:
+
+```bash
+sudo tools/deploy.sh -d zrace.example.com --tls -e you@example.com
+```
+
+`--repo https://github.com/eabuntov/ZRace.git` makes the script clone the game itself, so it
+can be copied to a server on its own; `--help` lists the rest.
+
+Re-run it to publish a change - anything deleted here is deleted there. The config it writes
+gzips the car models at deploy time (the fleet's 15 MB goes over the wire as 11.5 MB), gives
+`.glb` the media type Ubuntu's `mime.types` has never heard of, and marks every file to
+revalidate, for the same reason `tools/serve.py` sends no-cache: nothing here carries a
+content hash in its name, and a cached `main.js` against a fresh `carModel.js` fails with
+"does not provide an export named ...".
+
 ## Controls
 
 | Key | Action |
