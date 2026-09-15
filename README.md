@@ -107,11 +107,17 @@ third more draw calls.
 Whether a scan can race depends on whether its wheels come apart. `js/carRig.js` finds them
 by name, sorts them into corners, re-parents them under pivots of its own and then checks
 the result against the car it is supposed to be: four wheels of roughly the right radius,
-evenly spaced about the centreline, the right wheelbase apart. Five of the ten pass. The
-others merge all four wheels into one mesh apiece - the Monjaro is a single mesh for the
-whole car - and there is no way to turn one corner of those without turning the rest, so
-they race the code-built car instead and say so in the console. A scanned body sliding on
-wheels that do not turn would look far worse than a simpler car that behaves.
+evenly spaced about the centreline, the right wheelbase apart.
+
+Half the models used to fail that, because they merge all four wheels into one mesh apiece,
+and a merged wheel cannot be turned without turning the other three with it. So the build
+cuts them apart first: each triangle of a wheel mesh that spans more than one corner goes to
+the corner its centroid falls in, and each corner gets its own index buffer pointing into
+the same vertex arrays. No vertex data is copied, so a car's worth of splitting costs a few
+kilobytes. Nine of the ten pass now, with every wheelbase landing within 30 mm of the real
+car's. The Geely Monjaro is the one that does not: it is a single mesh for the entire car,
+so there is nothing to cut that would not cut the bodywork with it, and it races the
+code-built car and says so in the console.
 
 Glass is the other thing that made this affordable. Most of these models tint their windows
 with `KHR_materials_transmission`, and three.js pays for that by drawing the whole scene a
