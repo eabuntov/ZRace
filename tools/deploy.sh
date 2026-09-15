@@ -242,9 +242,13 @@ EOF
 
 ln -sfn "$AVAILABLE" "/etc/nginx/sites-enabled/$SITE"
 
-if [ -L /etc/nginx/sites-enabled/default ] && [ "$KEEP_DEFAULT" -eq 0 ]; then
+# Only when this site is the catch-all on port 80 does nginx's stock welcome
+# site get in the way - two default_server blocks on one port and nginx refuses
+# to start. On another port, or under a host name, it is none of our business.
+if [ "$PORT" -eq 80 ] && [ -z "$DOMAIN" ] \
+   && [ -L /etc/nginx/sites-enabled/default ] && [ "$KEEP_DEFAULT" -eq 0 ]; then
   rm -f /etc/nginx/sites-enabled/default
-  log "disabled nginx's default welcome site (--keep-default keeps it)"
+  log "disabled nginx's default welcome site, which also claims port 80 (--keep-default keeps it)"
 fi
 
 log "checking the config"
