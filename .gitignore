@@ -51,3 +51,8 @@ desktop.ini
 # Reference car models (CC-BY, see README) - 118 MB of Sketchfab GLB/USDZ/FBX kept
 # locally to measure silhouettes against. Nothing at run time loads them.
 models/
+
+# the record board database, if you run server/scores.py locally
+*.db
+*.db-wal
+*.db-shm

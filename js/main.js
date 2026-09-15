@@ -11,6 +11,7 @@ import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { UI, formatTime } from './ui.js';
+import * as Records from './records.js';
 import { setMaxAnisotropy, shadowTexture } from './textures.js';
 
 const DIFF = {
@@ -51,10 +52,18 @@ class Game {
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
 
     this.settings = Object.assign(
-      { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal' },
+      { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
+        name: Records.DEFAULT_NAME },
       this.load()
     );
     this.best = this.settings.best || {};
+    this.records = Records.load();
+    this.recordTrack = this.settings.trackIndex;
+    this.recordScope = 'global';
+    this.recordReq = 0;
+    // Ask once, in the background, whether this deployment has a shared board behind
+    // /api. Nothing waits on the answer; the records screen just falls back without it.
+    Records.probe().then((up) => { if (!up) this.recordScope = 'local'; });
 
     this.input = new Input();
     this.audio = new AudioEngine();
@@ -73,6 +82,14 @@ class Game {
       onPaint: (i) => this.pickPaint(i),
       onTrack: (i) => this.pickTrack(i),
       onOption: (k, v) => this.setOption(k, v),
+      onName: (v) => this.setName(v),
+      onRecordTrack: (i) => { this.recordTrack = i; this.showRecords(); },
+      onRecordScope: (v) => {
+        this.recordScope = v;
+        // asking for the shared board again is also asking whether it is back
+        if (v === 'global' && !Records.isOnline()) Records.probe().then(() => this.showRecords());
+        else this.showRecords();
+      },
       onStart: () => this.startRace(),
       onResume: () => this.resume(),
       onRestart: () => this.startRace(),
@@ -82,6 +99,7 @@ class Game {
     this.ui.buildCars(CARS, PAINTS, this.settings);
     this.ui.buildTracks(this.tracks, this.settings);
     this.ui.buildOptions(this.settings);
+    this.ui.setName(this.settings.name);
     this.ui.show('title');
 
     this.bindKeys();
@@ -226,12 +244,48 @@ class Game {
       this.ui.show('track');
     } else if (target === 'controls') {
       this.ui.show('controls');
+    } else if (target === 'records') {
+      this.recordTrack = this.settings.trackIndex;
+      this.showRecords();
     } else if (target === 'title') {
       this.ui.show('title');
     } else if (target === 'quit') {
       this.endRace(true);
       this.ui.show('title');
     }
+  }
+
+  // Paints from what is already in hand, then fills the shared board in when it lands.
+  // The request is tagged, so flicking between circuits while one is in flight cannot
+  // have the slow answer overwrite the board you are actually looking at.
+  showRecords() {
+    const def = this.tracks[this.recordTrack].def;
+    const you = Records.cleanName(this.settings.name);
+    const local = Records.forTrack(this.records, def.id);
+    const scope = Records.isOnline() ? this.recordScope : 'local';
+    const req = ++this.recordReq;
+
+    const paint = (rows) => this.ui.buildRecords({
+      tracks: this.tracks, sel: this.recordTrack, rows, you, scope,
+      online: Records.isOnline(),
+    });
+    paint(scope === 'global' ? null : local);
+    this.ui.show('records');
+
+    if (scope !== 'global') return;
+    Records.globalBoard(def.id).then((rows) => {
+      if (req !== this.recordReq || this.ui.current !== 'records') return;
+      if (rows) return paint(rows);
+      // Nothing came back. Someone who opened a record board wants to see records, so
+      // show them the ones this machine has rather than an apology where a table was.
+      this.recordScope = 'local';
+      this.showRecords();
+    });
+  }
+
+  setName(v) {
+    this.settings.name = Records.cleanName(v);
+    this.save();
   }
 
   pickCar(i) {
@@ -326,8 +380,8 @@ class Game {
       v.isPlayer = isPlayer;
       const paint = isPlayer ? PAINTS[this.settings.paintIndex].hex : PAINTS[(i * 3 + 2) % PAINTS.length].hex;
       const [code, name] = driverName(i);
-      v.code = isPlayer ? 'YOU' : code;
-      v.driver = isPlayer ? 'You' : name;
+      v.code = isPlayer ? Records.driverCode(this.settings.name) : code;
+      v.driver = isPlayer ? Records.cleanName(this.settings.name) : name;
       v.mesh = buildCar(spec, paint, { number: isPlayer ? 1 : i + 2 });
       v.mesh.rotation.order = 'YXZ';
       this.raceScene.add(v.mesh);
@@ -552,13 +606,27 @@ class Game {
 
   onPlayerLap(lap, n) {
     const id = this.def.id;
+    const spec = this.player.spec;
+    const entry = { name: this.settings.name, carId: spec.id, car: spec.name, ms: lap * 1000 };
+    const rank = Records.add(this.records, id, entry);
+    // and out to the shared board, if this deployment has one. A lap that tops it is
+    // worth saying so about; everything else is silent, including no service at all.
+    Records.submitGlobal(id, entry).then((worldRank) => {
+      if (worldRank === 1) {
+        this.ui.message('WORLD RECORD<small>' + formatTime(entry.ms) + '</small>', 'good', 2800);
+      }
+    });
     const prev = this.best[id];
-    if (prev == null || lap < prev) {
+    if (rank === 1) {
+      this.best[id] = Math.min(lap, prev == null ? lap : prev);
+      this.save();
+      this.ui.message('CIRCUIT RECORD<small>' + formatTime(lap * 1000) + '</small>', 'good', 2400);
+    } else if (prev == null || lap < prev) {
       this.best[id] = lap;
       this.save();
       this.ui.message('NEW BEST LAP<small>' + formatTime(lap * 1000) + '</small>', 'good', 2200);
     } else {
-      this.ui.message(formatTime(lap * 1000), '', 1600);
+      this.ui.message(formatTime(lap * 1000) + (rank ? `<small>P${rank} ON THE BOARD</small>` : ''), '', 1600);
     }
     const left = this.settings.laps - n;
     if (left === 1) setTimeout(() => this.ui.message('FINAL LAP', 'warn', 1800), 2300);

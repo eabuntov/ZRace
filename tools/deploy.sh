@@ -31,6 +31,13 @@ PORT=80
 SITE="zrace"
 WANT_TLS=0
 KEEP_DEFAULT=0
+WANT_SCORES=0
+SCORES_DB="/var/lib/zrace/zrace.db"
+SCORES_PORT=8011
+SCORES_USER="zrace"
+# Deliberately not under $WEBROOT: nginx serves that directory, and a record board whose
+# source and validator thresholds can be fetched over HTTP is not one you want.
+SCORES_DIR="/opt/zrace"
 
 usage() {
   cat <<'USAGE'
@@ -46,6 +53,9 @@ Usage: sudo deploy.sh [options]
   -r, --webroot DIR    where to install it (default: /var/www/zrace)
   -p, --port N         plain-HTTP port to listen on (default: 80)
   -n, --name NAME      nginx site file name (default: zrace)
+      --scores         also install the global record board: a small Python service
+                       over SQLite, behind /api/ on this same host
+      --scores-db PATH where the record database lives (default: /var/lib/zrace/zrace.db)
       --keep-default   leave nginx's default welcome site enabled
   -h, --help           this message
 USAGE
@@ -72,6 +82,8 @@ while [ $# -gt 0 ]; do
     -r|--webroot)   WEBROOT=${2:?--webroot needs a directory}; shift 2 ;;
     -p|--port)      PORT=${2:?--port needs a number};          shift 2 ;;
     -n|--name)      SITE=${2:?--name needs a site name};       shift 2 ;;
+    --scores)       WANT_SCORES=1;                             shift ;;
+    --scores-db)    SCORES_DB=${2:?--scores-db needs a path};  shift 2 ;;
     --keep-default) KEEP_DEFAULT=1;                            shift ;;
     -h|--help)      usage; exit 0 ;;
     *)              usage >&2; die "unknown option: $1" ;;
@@ -106,6 +118,7 @@ esac
 
 PKGS=(nginx rsync)
 [ -n "$REPO" ] && PKGS+=(git)
+[ "$WANT_SCORES" -eq 1 ] && PKGS+=(python3)
 [ "$WANT_TLS" -eq 1 ] && PKGS+=(certbot python3-certbot-nginx)
 
 log "installing ${PKGS[*]}"
@@ -180,6 +193,29 @@ else
   DEFAULT_SERVER=" default_server"
 fi
 
+# The /api/ proxy, built here rather than inline so the site template stays readable.
+# It is empty unless --scores was asked for, and a nginx config with a blank line in it
+# is still a nginx config.
+API_LOCATION=""
+if [ "$WANT_SCORES" -eq 1 ]; then
+  API_LOCATION=$(cat <<API
+    # The record board: server/scores.py over SQLite. It listens on loopback and has
+    # no authentication of its own, so it is reached through here and never directly.
+    location /api/ {
+        proxy_pass http://127.0.0.1:$SCORES_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
+        # a leaderboard is not worth a 502 page, and the game copes with silence
+        proxy_intercept_errors off;
+    }
+API
+)
+fi
+
 AVAILABLE="/etc/nginx/sites-available/$SITE"
 log "writing $AVAILABLE"
 cat > "$AVAILABLE" <<EOF
@@ -230,7 +266,7 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     }
 
-    location = /favicon.ico { access_log off; log_not_found off; }
+$API_LOCATION    location = /favicon.ico { access_log off; log_not_found off; }
 
     location ~ /\\. { deny all; }
 
@@ -255,6 +291,76 @@ log "checking the config"
 nginx -t
 systemctl enable --now nginx >/dev/null 2>&1 || die "nginx would not start"
 systemctl reload nginx
+
+# ------------------------------------------------------------ the record board
+
+if [ "$WANT_SCORES" -eq 1 ]; then
+  # Its own unprivileged account, owning only the directory the database sits in.
+  # A leaderboard that can write anywhere else is a leaderboard that can be used
+  # to write anywhere else.
+  id -u "$SCORES_USER" >/dev/null 2>&1 || {
+    log "creating system user $SCORES_USER"
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$SCORES_USER"
+  }
+  install -d -o "$SCORES_USER" -g "$SCORES_USER" -m 750 "$(dirname "$SCORES_DB")"
+
+  [ -f "$SOURCE/server/scores.py" ] || die "server/scores.py is missing from $SOURCE - is the source tree complete?"
+  [ -f "$SOURCE/server/floors.json" ] || die "server/floors.json is missing - generate it with: node tools/lap_floors.mjs"
+  log "installing the board service to $SCORES_DIR"
+  install -d -m 755 "$SCORES_DIR/server"
+  install -m 644 "$SOURCE/server/scores.py" "$SOURCE/server/floors.json" "$SCORES_DIR/server/"
+
+  UNIT=/etc/systemd/system/zrace-scores.service
+  log "writing $UNIT"
+  cat > "$UNIT" <<UNITEOF
+# ZRace record board - written by tools/deploy.sh, overwritten every time it runs.
+[Unit]
+Description=ZRace global record board
+After=network.target
+Before=nginx.service
+
+[Service]
+Type=simple
+User=$SCORES_USER
+Group=$SCORES_USER
+ExecStart=/usr/bin/python3 $SCORES_DIR/server/scores.py --host 127.0.0.1 --port $SCORES_PORT --db $SCORES_DB --floors $SCORES_DIR/server/floors.json
+Restart=on-failure
+RestartSec=2
+
+# It reads a JSON file, writes one database and answers on loopback. Nothing else.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=$(dirname "$SCORES_DB")
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+  systemctl daemon-reload
+  systemctl enable --now zrace-scores >/dev/null 2>&1 || true
+  systemctl restart zrace-scores
+  sleep 1
+  if systemctl is-active --quiet zrace-scores; then
+    log "record board running on 127.0.0.1:$SCORES_PORT, database $SCORES_DB"
+  else
+    warn "the record board did not start; see: journalctl -u zrace-scores -n 40"
+  fi
+elif systemctl list-unit-files 2>/dev/null | grep -q '^zrace-scores\.service'; then
+  # Deployed with --scores once and without it now: stop serving a board the site
+  # no longer proxies to, but leave the database where it is.
+  log "--scores not given; stopping the record board (its database is untouched)"
+  systemctl disable --now zrace-scores >/dev/null 2>&1 || true
+fi
 
 # --------------------------------------------------------------- firewall, TLS
 

@@ -60,6 +60,16 @@ h1 span { display: block; font-weight: 200; color: var(--accent); letter-spacing
 .tagline-sm { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
 .disclaimer { color: #5d6875; font-size: 11.5px; line-height: 1.5; margin-top: 38px; max-width: 430px; }
 
+.nick { display: flex; align-items: center; gap: 12px; margin: 0 0 22px; }
+.nick span { font-size: 10.5px; letter-spacing: 0.14em; color: var(--muted); }
+.nick input {
+  font-family: var(--font); font-size: 15px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text); background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; width: 200px;
+}
+.nick input:focus { outline: none; border-color: var(--accent); background: rgba(55, 224, 166, 0.08); }
+.nick input::placeholder { color: #5d6875; font-weight: 400; letter-spacing: 0; }
+
 .menu-buttons { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .menu-buttons.row { flex-direction: row; justify-content: center; flex-wrap: wrap; }
 button {
@@ -124,6 +134,7 @@ button.back { background: none; border: none; color: var(--muted); padding-left:
 .seg { display: flex; gap: 4px; }
 .seg button { padding: 8px 15px; font-size: 12.5px; border-radius: 8px; letter-spacing: 0.04em; }
 .seg button.sel { background: var(--accent); border-color: var(--accent); color: #04120c; }
+.seg button.dim { opacity: 0.45; }
 
 /* controls */
 .controls-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px 30px; align-content: start; padding: 30px clamp(18px, 4vw, 48px); }
@@ -140,6 +151,16 @@ table.results td.p { color: var(--muted); width: 34px; font-variant-numeric: tab
 table.results td.t { text-align: right; font-family: var(--mono); font-size: 13px; color: var(--muted); }
 table.results tr.you td { color: var(--accent); font-weight: 600; }
 table.results tr.you td.t { color: var(--accent); }
+
+/* records */
+#screen-records { background: rgba(8, 10, 14, 0.94); overflow-y: auto; }
+.wide-seg { flex-wrap: wrap; padding: 22px clamp(18px, 4vw, 48px) 4px; }
+table.results.records { width: auto; min-width: min(760px, 92vw); margin: 18px clamp(18px, 4vw, 48px); }
+table.results.records td.car { color: var(--muted); font-size: 12.5px; }
+table.results.records td.when { color: #5d6875; font-size: 11.5px; text-align: right; white-space: nowrap; }
+table.results.records tr.gold td.p { color: var(--accent); font-weight: 700; }
+table.results.records td.empty { color: var(--muted); text-align: center; padding: 42px 8px; border: none; }
+#recordNote { margin: 0 clamp(18px, 4vw, 48px) 32px; }
 
 /* loading */
 .loading-wrap { text-align: center; width: 320px; }

@@ -88,6 +88,46 @@ acceleration, which on a keyboard — where the throttle is only ever 0 or 1 —
 cars understeered into the barriers while the slow ones drove fine. Pull the handbrake and
 the assistance goes away, which is how you hold a slide on purpose.
 
+## Records
+
+Lap times are kept per circuit under the name on the title screen, one row per driver per
+car. The Records screen has two boards behind one toggle.
+
+**This browser** is always there: twelve rows a circuit in `localStorage`, no account, no
+network, shared by whoever races on the same machine. Deploy the game as a folder of static
+files and this is all you get, which is a complete answer for most people.
+
+**Global** appears when the deployment is running the record board — `server/scores.py`, a
+standard-library Python service over one SQLite file, behind `/api/` on the same host.
+Install it with `sudo tools/deploy.sh --scores`. Everything about it fails soft: if it is
+missing, slow or down, the game falls back to the local board and says so, and a lap set
+meanwhile still lands in `localStorage`.
+
+SQLite rather than a cache server because the whole board is about twenty kilobytes and
+this way it is durable on the first write with nothing to configure, backed up by copying
+one file, and reached through the HTTP service you had to write anyway.
+
+### Keeping the global board honest
+
+There is no login, so nothing can prove a lap was driven. What *can* be proved is that one
+was not. `tools/lap_floors.mjs` runs each car round each circuit at the limit everywhere —
+cornering, braking and accelerating as hard as its grip and motor allow — and writes the
+resulting lap times to `server/floors.json`. Nobody beats that number, so anything quicker
+is refused. Submissions are also rate limited per address, names are cleaned, and the
+service binds to loopback with nginx in front. Re-run the generator after changing a car's
+figures or a circuit's layout:
+
+```
+node tools/lap_floors.mjs
+```
+
+To develop against it, run the board alongside the dev server — `tools/serve.py` forwards
+`/api/` to it exactly as nginx does:
+
+```
+python tools/serve.py 8010
+python server/scores.py --port 8011 --db zrace.db
+```
 
 ## The cars
 
@@ -214,9 +254,13 @@ js/physics.js       vehicle model, surfaces, barrier and car-to-car collisions
 js/ai.js            racing line, speed profile and the opponent drivers
 js/input.js         keyboard, gamepad and touch
 js/audio.js         synthesised EV whine, tyre scrub, impacts (Web Audio, no samples)
-js/ui.js            menus, speed dial, minimap, timing tower, results
+js/ui.js            menus, speed dial, minimap, timing tower, results, record board
+js/records.js       nicknames, the local record table, and the global board client
+server/scores.py    optional global record board: SQLite behind /api/ (no dependencies)
+server/floors.json  fastest physically possible lap per car per circuit, for validation
 js/textures.js      every texture, painted into a canvas at run time
 tools/cars.html     dev page: model sheet (?view=side | front | rear, ?only=<id>)
+tools/lap_floors.mjs generates server/floors.json from the cars and circuits
 ```
 
 ### Handy while developing

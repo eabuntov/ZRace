@@ -2,6 +2,10 @@
 
 const $ = (id) => document.getElementById(id);
 
+// Driver names are typed by whoever is at the keyboard, so they are escaped, not trusted.
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 export function formatTime(ms) {
   if (ms == null || !isFinite(ms)) return '--:--.---';
   const m = Math.floor(ms / 60000);
@@ -44,6 +48,14 @@ export class UI {
     $('restart').addEventListener('click', () => hooks.onRestart());
     $('raceAgain').addEventListener('click', () => hooks.onRestart());
 
+    const nick = $('nick');
+    if (nick) {
+      nick.addEventListener('input', () => hooks.onName(nick.value));
+      nick.addEventListener('keydown', (e) => { if (e.key === 'Enter') nick.blur(); e.stopPropagation(); });
+    }
+    this.nickEl = nick;
+    this.boostEl = $('boost');
+    this.boostFx = $('boostfx');
     this.msgEl = $('msg');
     this.lightsEl = $('lights');
     this.lightsEl.innerHTML = '<i></i>'.repeat(5);
@@ -53,6 +65,8 @@ export class UI {
     this.msgTimer = 0;
     this.lastHud = {};
   }
+
+  setName(name) { if (this.nickEl && this.nickEl.value !== name) this.nickEl.value = name; }
 
   show(name) {
     Object.entries(this.screens).forEach(([k, el]) => el.classList.toggle('hidden', k !== name));
@@ -333,11 +347,65 @@ export class UI {
     $('resultRows').innerHTML = rows.map((r) => `
       <tr class="${r.you ? 'you' : ''}">
         <td class="p">${r.pos}</td>
-        <td>${r.name}</td>
-        <td class="muted">${r.car}</td>
+        <td>${esc(r.name)}</td>
+        <td class="muted">${esc(r.car)}</td>
         <td class="t">${r.time}</td>
       </tr>`).join('');
     this.show('results');
+  }
+
+  // ------------------------------------------------------------- records
+  // One board per circuit, sorted by lap time, one row per driver per car. `rows` is
+  // null while the shared board is still on its way, or when it could not be reached.
+  buildRecords({ tracks, sel, rows, you, scope, online }) {
+    const scopes = $('recordScope');
+    scopes.innerHTML = '';
+    for (const [key, label] of [['global', 'GLOBAL'], ['local', 'THIS BROWSER']]) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.className = key === scope ? 'sel' : '';
+      // GLOBAL stays clickable even when the last attempt failed: a board that was
+      // down a minute ago may not be now, and greying it out for the rest of the
+      // session would be a worse answer than letting someone ask again.
+      if (key === 'global' && online === false) b.classList.add('dim');
+      b.addEventListener('click', () => this.hooks.onRecordScope(key));
+      scopes.appendChild(b);
+    }
+
+    const tabs = $('recordTracks');
+    tabs.innerHTML = '';
+    tracks.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.textContent = t.def.city.toUpperCase();
+      b.className = i === sel ? 'sel' : '';
+      b.addEventListener('click', () => this.hooks.onRecordTrack(i));
+      tabs.appendChild(b);
+    });
+
+    const body = $('recordRows');
+    const note = (text) => `<tr><td class="empty" colspan="5">${text}</td></tr>`;
+    if (rows == null) {
+      body.innerHTML = note(online === false
+        ? 'No shared board on this server — the times below are the ones on this machine.'
+        : 'Fetching the shared board…');
+    } else if (!rows.length) {
+      body.innerHTML = note('No laps here yet. Set one and you are the record.');
+    } else {
+      const day = (ms) => new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
+      body.innerHTML = rows.map((r, i) => `
+        <tr class="${r.name === you ? 'you' : ''}${i === 0 ? ' gold' : ''}">
+          <td class="p">${i + 1}</td>
+          <td>${esc(r.name)}</td>
+          <td class="car">${esc(r.car)}</td>
+          <td class="t">${formatTime(r.ms)}</td>
+          <td class="when">${r.at ? day(r.at) : ''}</td>
+        </tr>`).join('');
+    }
+    $('recordNote').textContent = scope === 'global'
+      ? 'Best lap per driver per car, from everyone racing this server. Laps quicker than the '
+        + 'car can physically go are refused, but a name is only a name — take it in that spirit.'
+      : 'Best lap per driver per car, kept in this browser. Change the name on the title screen '
+        + 'to share a board with whoever else races on this machine.';
   }
 
   loading(text) {
