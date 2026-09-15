@@ -1108,6 +1108,59 @@ export function buildCar(spec, paintHex, opts = {}) {
     spec, wheels, steerWheels: [wheels[0], wheels[1]],
     bodyMat, tailMat, headMat, wheelR,
   };
+  return addBoostJet(group, spec);
+}
+
+// ------------------------------------------------------------------ boost jet
+//
+// The plume behind a car on overboost: a pair of cones out of the diffuser, each a
+// near-white core inside a wider, softer halo, blended additively so they glow rather
+// than paint over the scenery. They are ion blue and not flame orange because nothing
+// on this grid burns anything - swap JET_COLOUR if you would rather have fire.
+//
+// Built for whatever mesh the car is actually racing - the code-built car above or a
+// rigged scan - so it hangs off the group rather than off any particular body part.
+const JET_COLOUR = { core: '#e8f6ff', halo: '#3aa6ff' };
+
+export function addBoostJet(group, spec) {
+  if (group.userData.jet) return group;
+  const zR = spec.hull ? Math.min(...spec.hull.map((r) => r[0])) : -spec.dims.L / 2;
+  const y = spec.ride + 0.30;
+  const jet = [];
+  for (const side of [-1, 1]) {
+    for (const [r, len, hex, op] of [[0.19, 0.78, JET_COLOUR.halo, 0.36], [0.09, 1.02, JET_COLOUR.core, 0.5]]) {
+      const g = new THREE.ConeGeometry(r, len, 14, 1, true);
+      // Fade it out along its length. Under additive blending a darker vertex adds less,
+      // so painting the tip black and the base white turns the cone into a plume that
+      // thins into nothing instead of ending in a hard edge.
+      const pos = g.attributes.position;
+      const col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const f = Math.pow(Math.max(0, Math.min(1, 0.5 - pos.getY(i) / len)), 1.5);
+        col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const m = new THREE.Mesh(
+        g,
+        new THREE.MeshBasicMaterial({
+          color: hex, transparent: true, opacity: 0, depthWrite: false, fog: false,
+          vertexColors: true,
+          blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+        })
+      );
+      // the cone is built along +Y with its point at the top; lay it down so the point
+      // trails behind the car and the open base sits in the bumper
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(side * spec.dims.W * 0.29, y, zR - len / 2 + 0.1);
+      m.castShadow = m.receiveShadow = false;
+      m.visible = false;
+      m.userData.baseOpacity = op;
+      group.add(m);
+      jet.push(m);
+    }
+  }
+  group.userData.jet = jet;
+  group.userData.jetLevel = 0;
   return group;
 }
 
@@ -1119,5 +1172,20 @@ export function animateCar(car, state, dt) {
   const steer = state.steerAngle || 0;
   u.steerWheels[0].rotation.y = steer;
   u.steerWheels[1].rotation.y = steer;
-  u.tailMat.emissiveIntensity = state.braking ? 4.2 : 1.3;
+  // the tail lamps glow under boost too, short of the flare braking gives them
+  u.tailMat.emissiveIntensity = state.braking ? 4.2 : state.boosting ? 3.2 : 1.3;
+
+  if (!u.jet) return;
+  // Lights fast, dies slowly, and runs longer the quicker the car is going.
+  const want = state.boosting ? 1 : 0;
+  u.jetLevel += (want - u.jetLevel) * Math.min(1, dt * (want ? 20 : 7));
+  const lvl = u.jetLevel;
+  const stretch = 1 + Math.min(1.1, state.speed / 70);
+  for (const m of u.jet) {
+    m.visible = lvl > 0.02;
+    if (!m.visible) continue;
+    const flick = 0.78 + Math.random() * 0.44;
+    m.scale.set(lvl * flick, lvl * stretch * flick, lvl * flick);
+    m.material.opacity = m.userData.baseOpacity * lvl * flick;
+  }
 }

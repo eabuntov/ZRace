@@ -6,14 +6,15 @@ const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left',
   ArrowRight: 'right', KeyD: 'right',
   Space: 'handbrake',
+  ShiftLeft: 'boost', ShiftRight: 'boost',
 };
 
 export class Input {
   constructor() {
     this.keys = new Set();
-    this.touch = { up: false, down: false, left: false, right: false, handbrake: false };
+    this.touch = { up: false, down: false, left: false, right: false, handbrake: false, boost: false };
     this.steer = 0;
-    this.state = { throttle: 0, brake: 0, steer: 0, handbrake: false, allowReverse: true };
+    this.state = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, allowReverse: true };
     this.actions = new Map();
     this.enabled = true;
 
@@ -52,6 +53,7 @@ export class Input {
     let brake = held('down') ? 1 : 0;
     let steerTarget = (held('right') ? 1 : 0) - (held('left') ? 1 : 0);
     let handbrake = held('handbrake');
+    let boost = held('boost');
 
     // gamepad (first connected pad)
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -64,6 +66,8 @@ export class Input {
       if (rt > 0.04) throttle = rt;
       if (lt > 0.04) brake = lt;
       if (pad.buttons[0] && pad.buttons[0].pressed) handbrake = true;
+      // B / circle, or either shoulder button
+      for (const i of [1, 4, 5]) if (pad.buttons[i] && pad.buttons[i].pressed) boost = true;
       break;
     }
 
@@ -77,6 +81,7 @@ export class Input {
     s.brake = this.enabled ? brake : 0;
     s.steer = this.enabled ? this.steer : 0;
     s.handbrake = this.enabled ? handbrake : false;
+    s.boost = this.enabled ? boost : false;
     return s;
   }
 

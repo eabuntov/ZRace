@@ -43,8 +43,11 @@
       <canvas id="dial" width="260" height="260"></canvas>
       <div class="dial-read"><span id="kmh">0</span><small>km/h</small></div>
       <div class="dial-sub" id="powerRead">0 kW</div>
+      <div class="boost" id="boost"><i></i><label>BOOST</label></div>
     </div>
   </div>
+
+  <div id="boostfx" aria-hidden="true"></div>
 
   <div id="lights" class="start-lights"></div>
   <div id="msg" class="center-msg"></div>
@@ -56,6 +59,7 @@
     </div>
     <div class="touch-right">
       <button data-touch="down" aria-label="brake">BRAKE</button>
+      <button data-touch="boost" class="boost-btn" aria-label="boost">BOOST</button>
       <button data-touch="up" aria-label="accelerate">GO</button>
     </div>
   </div>
@@ -121,14 +125,27 @@
       <div><kbd>W</kbd> <kbd>↑</kbd><span>Accelerate</span></div>
       <div><kbd>S</kbd> <kbd>↓</kbd><span>Brake / reverse</span></div>
       <div><kbd>A</kbd> <kbd>D</kbd><span>Steer</span></div>
-      <div><kbd>Space</kbd><span>Handbrake — get the tail out</span></div>
+      <div><kbd>Shift</kbd><span>Boost — a few seconds of overboost, then it refills</span></div>
+      <div><kbd>Space</kbd><span>Handbrake — stability control off, get the tail out</span></div>
       <div><kbd>C</kbd><span>Camera: chase / close / bonnet</span></div>
       <div><kbd>R</kbd><span>Rejoin the track</span></div>
       <div><kbd>P</kbd> <kbd>Esc</kbd><span>Pause</span></div>
       <div><kbd>M</kbd><span>Mute</span></div>
-      <div class="wide"><span>A gamepad works too: right trigger accelerates, left brakes, left stick steers.
+      <div class="wide"><span>A gamepad works too: right trigger accelerates, left brakes, left stick steers,
+        B or a shoulder button boosts.
         On a touch screen, on-screen pedals appear automatically.</span></div>
     </div>
+  </section>
+
+  <section id="screen-records" class="screen hidden">
+    <header class="screen-head">
+      <button class="back" data-back="title">‹ Back</button>
+      <h2>Records</h2>
+      <div class="seg" id="recordScope"></div>
+    </header>
+    <div class="seg wide-seg" id="recordTracks"></div>
+    <table class="results records"><tbody id="recordRows"></tbody></table>
+    <p class="disclaimer" id="recordNote"></p>
   </section>
 
   <section id="screen-pause" class="screen hidden overlay">

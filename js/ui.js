@@ -280,6 +280,19 @@ export class UI {
     ctx.stroke();
   }
 
+  drawBoost(charge, on, armed) {
+    const el = this.boostEl;
+    if (!el) return;
+    const pct = Math.round(Math.max(0, Math.min(1, charge)) * 100);
+    if (pct !== this._boostPct) { el.firstElementChild.style.setProperty('--fill', pct + '%'); this._boostPct = pct; }
+    const cls = 'boost' + (on ? ' on' : armed ? ' ready' : '');
+    if (cls !== this._boostCls) {
+      el.className = cls;
+      if (this.boostFx) this.boostFx.classList.toggle('on', !!on);
+      this._boostCls = cls;
+    }
+  }
+
   updateHud(d) {
     if (d.pos !== this.lastHud.pos) $('pos').textContent = d.pos;
     if (d.total !== this.lastHud.total) $('posTotal').textContent = d.total;
@@ -291,6 +304,7 @@ export class UI {
     $('tLast').textContent = formatTime(d.last);
     $('tBest').textContent = formatTime(d.best);
     this.drawDial(d.kmh, d.vTopKmh, d.power, d.maxPower);
+    this.drawBoost(d.boost, d.boosting, d.boostArmed);
     this.lastHud = d;
   }
 

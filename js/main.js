@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { TRACKS } from './tracks.js';
 import { TrackPath } from './trackPath.js';
 import { TrackWorld } from './trackBuild.js';
-import { CARS, PAINTS, buildCar, animateCar } from './cars.js';
+import { CARS, PAINTS, buildCar, animateCar, addBoostJet } from './cars.js';
 import { loadShowroomCar, repaintShowroomCar } from './carModel.js';
 import { rigScan } from './carRig.js';
 import { Vehicle, resolveCollisions } from './physics.js';
@@ -390,6 +390,7 @@ class Game {
         return;
       }
       scan.userData = { ...scan.userData, ...rig };
+      addBoostJet(scan, v.spec);
       scan.rotation.order = 'YXZ';
       scan.position.copy(v.mesh.position);
       scan.quaternion.copy(v.mesh.quaternion);
@@ -599,7 +600,8 @@ class Game {
     const mode = CAM_MODES[this.camMode];
     const fwd = new THREE.Vector3(Math.sin(p.h), 0, Math.cos(p.h));
     const target = new THREE.Vector3(p.x, p.y, p.z);
-    this.camera.fov += (mode.fov + Math.min(16, p.speed * 0.26) - this.camera.fov) * Math.min(1, dt * 3);
+    const wantFov = mode.fov + Math.min(16, p.speed * 0.26) + (p.boosting ? 7 : 0);
+    this.camera.fov += (wantFov - this.camera.fov) * Math.min(1, dt * (p.boosting ? 5 : 3));
     this.camera.updateProjectionMatrix();
 
     if (mode.bonnet) {
@@ -644,6 +646,9 @@ class Game {
       vTopKmh: p.spec.vTop * 3.6 * 1.05,
       power: p.powerDraw,
       maxPower: p.spec.power / 1000,
+      boost: p.boostCharge,
+      boosting: p.boosting,
+      boostArmed: p.boostCharge >= 0.25,
       current: cur * 1000,
       last: p.race.laps.length ? p.race.laps[p.race.laps.length - 1] * 1000 : null,
       best: p.race.best != null ? p.race.best * 1000 : (this.best[this.def.id] != null ? this.best[this.def.id] * 1000 : null),
@@ -692,7 +697,7 @@ class Game {
     const p = this.player;
     this.audio.update(dt, {
       speed: p.speed, vTop: p.spec.vTop, throttle: this.input.state.throttle,
-      slide: p.slide, rumble: p.rumble,
+      slide: p.slide, rumble: p.rumble, boosting: p.boosting,
     });
     this.renderer.render(this.raceScene, this.camera);
   }

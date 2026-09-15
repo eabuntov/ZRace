@@ -8,6 +8,17 @@
 const G = 9.81;
 const CAR_HALF_WIDTH = 0.95;
 
+// Overboost. Road EVs call it boost, Formula E calls it attack mode, the pub calls it
+// nitrous: a few seconds of more than the car normally gives you. It lifts the power
+// ceiling and the limiter, so it buys you a tow down a straight - it cannot buy you
+// grip, and stability control still owns the corner.
+const BOOST_SECONDS = 4.5;   // a full tank, held down
+const BOOST_REFILL = 0.042;  // per second, always
+const BOOST_REGEN = 0.055;   // per second more, braking hard from speed
+const BOOST_ARM = 0.25;      // needs at least this much in the tank to light
+const BOOST_POWER = 1.4;
+const BOOST_VTOP = 1.09;
+
 export const SURFACES = {
   road: { grip: 1.0, drag: 0, rumble: 0 },
   kerb: { grip: 0.93, drag: 0.6, rumble: 1 },
@@ -47,6 +58,8 @@ export class Vehicle {
     this.accelLong = 0; this.accelLat = 0;
     this.powerDraw = 0;
     this.stuck = 0;
+    this.boostCharge = 1;    // 0..1 tank
+    this.boosting = false;
   }
 
   placeAt(s, u, opts = {}) {
@@ -68,8 +81,15 @@ export class Vehicle {
     return this.proj;
   }
 
-  // input: {throttle 0..1, brake 0..1, steer -1..1 (+ = right), handbrake bool}
+  // Peak front-wheel angle at this speed: plenty of lock for parking, very little at speed.
+  steerLimit(speed) { return (0.60 / (1 + speed * 0.058)) * this.spec.agility; }
+
+  // input: {throttle 0..1, brake 0..1, steer -1..1 (+ = right), handbrake, boost bool}
   update(dt, input) {
+    // Overboost lifts a power ceiling, so with the throttle shut there is nothing for it
+    // to lift: it neither lights nor drains until you are actually asking for drive.
+    this.boosting = !!input.boost && (input.throttle || 0) > 0.1
+      && this.boostCharge > (this.boosting ? 0 : BOOST_ARM);
     const steps = Math.min(6, Math.max(1, Math.ceil(dt / 0.009)));
     const h = dt / steps;
     this.impact = 0;
@@ -87,21 +107,42 @@ export class Vehicle {
     const surf = SURFACES[this.surface] || SURFACES.road;
     const grip = surf.grip;
 
+    // --- how much of the tyres the corner is asking for -------------------------
+    // Grip is one budget shared between turning and driving. Every car here has
+    // stability control, which reads the steering and the yaw rate, works out what
+    // the corner needs and lets the motors have only what is left. Modelling that
+    // is what keeps the quick cars steerable: a 1.1 MW motor can ask for the whole
+    // contact patch at 80 km/h, and on a keyboard the throttle is only ever 0 or 1,
+    // so without it holding the accelerator meant ploughing straight on.
+    const steerIn = clamp(input.steer || 0, -1, 1);
+    const latFull = this.latMax * grip;
+    const omegaAsk = Math.abs(steerIn) * Math.min(
+      (Math.abs(vf) / this.wb) * Math.tan(this.steerLimit(speed)),
+      (latFull / Math.max(speed, 3.2)) * 1.08,
+    );
+    // the larger of what the driver is asking for and what the car is already doing
+    const latUse = Math.min(1, (Math.max(Math.abs(this.omega), omegaAsk) * speed) / latFull);
+    // The handbrake is also the ESC-off switch: pull it and the motors get everything
+    // again, which is how you hold a power-slide on purpose.
+    const driveShare = input.handbrake ? 1 : Math.max(0.3, Math.sqrt(1 - latUse * latUse));
+
     // --- longitudinal ---
     let force = 0;
     const throttle = input.throttle || 0;
     const brake = input.brake || 0;
     if (throttle > 0 && !(this.reverse && vf < 0)) {
-      force += throttle * Math.min(this.fMax, this.power / Math.max(Math.abs(vf), 4));
+      const b = this.boosting ? BOOST_POWER : 1;
+      force += throttle * Math.min(this.fMax * b, (this.power * b) / Math.max(Math.abs(vf), 4));
     }
     if (brake > 0) {
       if (vf > 0.4) force -= brake * this.brakeAccel * this.mass;
       else force -= brake * this.mass * 4.2; // reverse
     }
     if (input.handbrake) force -= Math.sign(vf) * this.mass * 6.5;
-    // traction limit
+    // traction limit - drive is capped by what the corner has left over, braking is not
+    // (trail-braking should cost you grip, and that fall-off is handled by `circle` below)
     const tractionMax = grip * this.spec.grip * this.mass * G * 1.0;
-    force = clamp(force, -tractionMax, tractionMax);
+    force = clamp(force, -tractionMax, tractionMax * driveShare);
     // resistance
     force -= Math.sign(vf) * (this.cd * vf * vf + this.crr + surf.drag * this.mass * 0.1);
     // gravity along the slope
@@ -114,13 +155,12 @@ export class Vehicle {
     if (brake > 0 && vf > 0 && vfNew < 0 && !input.allowReverse) vf = 0;
     else vf = vfNew;
     if (vf < -9) vf = -9;
-    const vTopLimit = this.spec.vTop * 1.02;
+    const vTopLimit = this.spec.vTop * 1.02 * (this.boosting ? BOOST_VTOP : 1);
     if (vf > vTopLimit) vf = vTopLimit;
 
     // --- steering and yaw ---
     const sp = Math.hypot(vf, vl);
-    const steerMax = (0.60 / (1 + sp * 0.058)) * this.spec.agility;
-    const steerIn = clamp(input.steer || 0, -1, 1);
+    const steerMax = this.steerLimit(sp);
     this.steerAngle = -steerIn * steerMax;
     const longUse = Math.min(1, Math.abs(aLong) / (grip * this.spec.grip * G));
     const circle = Math.sqrt(Math.max(0.15, 1 - longUse * longUse * 0.85));
@@ -202,6 +242,14 @@ export class Vehicle {
     this.rumble = surf.rumble * Math.min(1, this.speed / 25);
 
     if (this.speed < 1.2) this.stuck += dt; else this.stuck = 0;
+
+    // The boost tank drains while it is lit and fills the rest of the time, faster
+    // under braking - the same regenerated energy the power ring already shows.
+    if (this.boosting) this.boostCharge = Math.max(0, this.boostCharge - dt / BOOST_SECONDS);
+    else {
+      const regen = this.braking && this.speed > 8 ? BOOST_REGEN : 0;
+      this.boostCharge = Math.min(1, this.boostCharge + (BOOST_REFILL + regen) * dt);
+    }
   }
 
   // Yaw rate available right now (used by the AI to convert a desired curvature
@@ -209,8 +257,7 @@ export class Vehicle {
   maxYawRate() {
     const surf = SURFACES[this.surface] || SURFACES.road;
     const sp = Math.max(this.speed, 3.2);
-    const steerMax = (0.60 / (1 + sp * 0.058)) * this.spec.agility;
-    const kinMax = (Math.abs(this.vf) / this.wb) * Math.tan(steerMax);
+    const kinMax = (Math.abs(this.vf) / this.wb) * Math.tan(this.steerLimit(sp));
     const gripMax = (this.latMax * surf.grip * 1.08) / sp;
     return Math.max(0.02, Math.min(kinMax, gripMax));
   }

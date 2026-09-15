@@ -54,14 +54,40 @@ content hash in its name, and a cached `main.js` against a fresh `carModel.js` f
 | `W` / `↑` | Accelerate |
 | `S` / `↓` | Brake, then reverse |
 | `A` `D` / `←` `→` | Steer |
-| `Space` | Handbrake (drops rear grip — good for tight hairpins) |
+| `Shift` | Boost — a few seconds of overboost, then it refills |
+| `Space` | Handbrake (drops rear grip, and switches stability control off) |
 | `C` | Camera: chase / close / bonnet |
 | `R` | Rejoin the track |
 | `P` or `Esc` | Pause |
 | `M` | Mute |
 
-A gamepad works too (right trigger accelerates, left brakes, left stick steers), and
-on-screen pedals appear on touch devices.
+A gamepad works too (right trigger accelerates, left brakes, left stick steers, B or a
+shoulder button boosts), and on-screen pedals appear on touch devices.
+
+### Boost
+
+A tank worth about four and a half seconds, spent by holding `Shift`. It lifts the power
+ceiling and the limiter by a third, so it is worth real time down a straight — but it
+cannot buy grip, and stability control still gives the corner first call on the tyres, so
+there is nothing to be gained by holding it through a hairpin. It does nothing with the
+throttle shut, so it neither lights nor drains while you are coasting. The tank refills on
+its own and refills faster under braking, off the same regenerated energy the power ring
+shows.
+
+You can see it: a plume out of each side of the diffuser, the tail lamps up, streaks
+rushing past the edge of the frame and the camera falling back a few degrees of field of
+view. The plume is ion blue rather than flame orange because nothing on this grid burns
+anything — `JET_COLOUR` in `js/cars.js` is one line if you would rather have fire.
+
+### Stability control
+
+Grip is one budget shared between turning and driving, and these cars have the electronics
+to police it: the drive force is capped by whatever the corner is not already using. Without
+that a 1.1 MW car answers a held throttle by spending its whole contact patch on
+acceleration, which on a keyboard — where the throttle is only ever 0 or 1 — meant the quick
+cars understeered into the barriers while the slow ones drove fine. Pull the handbrake and
+the assistance goes away, which is how you hold a slide on purpose.
+
 
 ## The cars
 
@@ -183,7 +209,7 @@ js/main.js          renderer, showroom, race loop and race rules
 js/trackPath.js     centreline maths: spline, elevation, projection (pure, testable in Node)
 js/tracks.js        the five circuits and their themes
 js/trackBuild.js    3D world: road, kerbs, barriers, terrain, water, scenery, sky
-js/cars.js          car specs and the procedural car models
+js/cars.js          car specs, the procedural car models and the boost plume
 js/physics.js       vehicle model, surfaces, barrier and car-to-car collisions
 js/ai.js            racing line, speed profile and the opponent drivers
 js/input.js         keyboard, gamepad and touch

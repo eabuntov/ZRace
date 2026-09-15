@@ -92,7 +92,7 @@ export class AIDriver {
     this.skill = opts.skill ?? 0.93;
     this.lane = 0;
     this.targetLane = 0;
-    this.input = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+    this.input = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false };
     this.rebuildProfile();
     this.blocked = 0;
     this.mistake = 0;
@@ -184,6 +184,13 @@ export class AIDriver {
     }
     // don't power out of a big slide
     if (v.slide > 2.5) this.input.throttle *= 0.35;
+
+    // Boost is saved for somewhere it pays: flat out, already moving, with a fast
+    // stretch ahead. Drivers being chased down spend it sooner.
+    this.input.boost = this.input.throttle > 0.9
+      && v.boostCharge > (rubber > 0 ? 0.3 : 0.55)
+      && target > v.spec.vTop * 0.72
+      && speed > v.spec.vTop * 0.45;
 
     // --- recovery ---
     if (v.stuck > 3) {

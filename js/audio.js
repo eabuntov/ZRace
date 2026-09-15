@@ -40,6 +40,7 @@ export class AudioEngine {
     this.wind = mk('bandpass', 700, 0.6, 0);
     this.tyres = mk('bandpass', 1750, 4.5, 0);
     this.rumble = mk('lowpass', 130, 1.2, 0);
+    this.boost = mk('bandpass', 1250, 0.8, 0);
 
     // motor: two saws plus a high inverter whine
     const motorGain = (this.motorGain = ctx.createGain());
@@ -84,12 +85,12 @@ export class AudioEngine {
     this.running = false;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    for (const g of [this.motorGain, this.wind, this.tyres, this.rumble, this.whineGain]) {
+    for (const g of [this.motorGain, this.wind, this.tyres, this.rumble, this.boost, this.whineGain]) {
       g.gain.setTargetAtTime(0, t, 0.08);
     }
   }
 
-  // state: { speed (m/s), vTop, throttle, slide, rumble, inTunnel }
+  // state: { speed (m/s), vTop, throttle, slide, rumble, boosting, inTunnel }
   update(dt, s) {
     if (!this.ctx || !this.running) return;
     const t = this.ctx.currentTime;
@@ -98,11 +99,12 @@ export class AudioEngine {
     for (const { o, mul } of this.osc) o.frequency.setTargetAtTime(base * mul, t, 0.05);
     const load = 0.1 + 0.5 * (s.throttle || 0) + 0.35 * ratio;
     this.motorGain.gain.setTargetAtTime(0.16 * load, t, 0.06);
-    this.whine.frequency.setTargetAtTime(420 + ratio * 1600, t, 0.05);
+    this.whine.frequency.setTargetAtTime((420 + ratio * 1600) * (s.boosting ? 1.22 : 1), t, 0.05);
     this.whineGain.gain.setTargetAtTime(0.012 + 0.02 * ratio, t, 0.08);
     this.wind.gain.setTargetAtTime(Math.min(0.16, ratio * ratio * 0.2), t, 0.1);
     this.tyres.gain.setTargetAtTime(Math.min(0.2, Math.max(0, (s.slide - 0.8) * 0.05)), t, 0.05);
     this.rumble.gain.setTargetAtTime(Math.min(0.25, (s.rumble || 0) * 0.3), t, 0.05);
+    this.boost.gain.setTargetAtTime(s.boosting ? 0.11 : 0, t, s.boosting ? 0.05 : 0.25);
   }
 
   hit(strength) {
