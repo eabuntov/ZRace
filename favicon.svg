@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- ZRace mark: the Z drawn as a path rather than text, because a favicon is rendered
+       without the page's fonts and at 16 px a substituted typeface turns to mush. -->
+  <rect width="32" height="32" rx="7" fill="#0c0f13"/>
+  <polygon points="7,6.5 25,6.5 25,11 15.2,21 25,21 25,25.5 7,25.5 7,21 16.8,11 7,11"
+           fill="#37e0a6"/>
+</svg>

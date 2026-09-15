@@ -170,9 +170,13 @@ class Game {
     this.showAngle = 0.6;
   }
 
-  // The turntable car is built in code first so the screen is never empty, then
-  // replaced by the scanned model if this car has one and it arrives before the choice
-  // moves on. Scanned models share cached geometry, so only built ones are disposed.
+  // The turntable shows the scan itself. Building a code car first only to throw it away
+  // a moment later made the screen flicker, and there is no need: every car has a scan,
+  // the load starts at boot rather than when the screen opens, and a scan already seen is
+  // cached and comes back in well under a tenth of a second. Whatever is on the platform
+  // stays there until the next one is ready, so changing car never shows an empty stand.
+  // The code-built car remains the fallback for a download that fails.
+  // Scanned models share cached geometry, so only built ones are ever disposed.
   dropShowroomCar() {
     if (!this.showCar) return;
     this.showroom.remove(this.showCar);
@@ -183,18 +187,21 @@ class Game {
   }
 
   refreshShowroomCar() {
-    this.dropShowroomCar();
     const spec = CARS[this.settings.carIndex];
     const paintHex = PAINTS[this.settings.paintIndex].hex;
-    this.showCar = buildCar(spec, paintHex);
-    this.showroom.add(this.showCar);
     const token = (this.showToken = (this.showToken || 0) + 1);
-    loadShowroomCar(spec, paintHex).then((model) => {
-      if (!model || token !== this.showToken) return;
+    const put = (car) => {
+      if (token !== this.showToken) {            // the choice moved on while this loaded
+        if (car && !car.userData.shared) car.traverse((o) => o.geometry && o.geometry.dispose());
+        return;
+      }
       this.dropShowroomCar();
-      this.showCar = model;
-      this.showroom.add(model);
-    });
+      this.showCar = car;
+      this.showroom.add(car);
+    };
+    loadShowroomCar(spec, paintHex)
+      .then((model) => put(model || buildCar(spec, paintHex)))
+      .catch(() => put(buildCar(spec, paintHex)));
   }
 
   // ----------------------------------------------------------------- menus

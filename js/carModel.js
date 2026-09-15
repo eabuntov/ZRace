@@ -6,9 +6,9 @@
 // against, stripped of their interiors and their four spare wheel sets, then simplified
 // and quantised to roughly a fifth of the triangles and an eighth of the bytes.
 //
-// Nothing here is allowed to hold up the menu. The code-built car goes on the turntable
-// straight away and the scan replaces it whenever it finishes arriving; a download that
-// fails, or a car with no scan, simply leaves the built one there.
+// Nothing here is allowed to leave the menu empty-handed. A scan that fails to arrive, or
+// a car that has none, resolves to null and the caller stands the code-built car on the
+// turntable instead. Scenes are cached on first sight, so every later look is immediate.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
