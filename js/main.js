@@ -13,7 +13,7 @@ import { AudioEngine } from './audio.js';
 import { UI, formatTime } from './ui.js';
 import * as Records from './records.js';
 import { t, num, setLanguage } from './i18n.js';
-import { setMaxAnisotropy, shadowTexture } from './textures.js';
+import { setMaxAnisotropy, shadowTexture, glowTexture, studioFloorTexture } from './textures.js';
 
 const DIFF = {
   easy: { skill: 0.86, rubber: 0.022 },
@@ -158,22 +158,120 @@ class Game {
     return env;
   }
 
+  // The showroom gets a studio of its own rather than the sky a circuit uses. A sky is
+  // one bright dome overhead: it lights a roof and a bonnet and leaves the flanks, the
+  // sills and the wheels to fall away into the background, which is why the car on the
+  // turntable looked like it was parked in an unlit garage. This is a light box - dark
+  // walls, three bright strips across the ceiling, and a floor bright enough to bounce.
+  // Paint is mostly a mirror, so this map does more for how the car reads than any of
+  // the lamps below it: the strips are what draw the long highlights down its length.
+  studioEnv() {
+    const c = document.createElement('canvas');
+    c.width = 1024; c.height = 512;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 512);
+    g.addColorStop(0.00, '#9fb0c4');          // ceiling
+    g.addColorStop(0.30, '#4a5462');          // upper wall
+    g.addColorStop(0.50, '#333b46');          // horizon
+    g.addColorStop(0.60, '#48525f');          // floor, lit near the car
+    g.addColorStop(1.00, '#222830');          // floor, away from it
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // A soft-edged blob, stretched: a strip light seen in a mirror has no hard edge.
+    const blob = (cx, cy, rx, ry, alpha, core = 0.45) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(rx, ry);
+      const rg = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      rg.addColorStop(0, 'rgba(255,255,255,1)');
+      rg.addColorStop(core, 'rgba(255,255,255,0.92)');
+      rg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = rg;
+      ctx.fillRect(-1, -1, 2, 2);
+      ctx.restore();
+    };
+
+    // Three overhead strips, spread around the compass so the car is never turned to a
+    // side that has nothing to reflect.
+    for (const cx of [148, 512, 876]) blob(cx, 86, 190, 40, 1);
+    // and the bounce back up off the floor
+    for (const cx of [148, 512, 876]) blob(cx, 352, 230, 64, 0.30, 0.2);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const env = this.pmrem.fromEquirectangular(tex).texture;
+    tex.dispose();
+    return env;
+  }
+
+  // The three strips, as things you can see. The environment map already puts them in
+  // the paint; without anything on screen the highlights sliding along the bodywork are
+  // reflections of nothing, and the scene reads as flat however bright it gets.
+  addStudioStrips(s) {
+    const housing = new THREE.MeshStandardMaterial({ color: '#141922', roughness: 0.55, metalness: 0.6 });
+    const lens = new THREE.MeshBasicMaterial({ color: '#eef5ff' });
+    // The halo is what a bright strip does to a camera, faked: additive, never written
+    // to the depth buffer, so it lies over whatever is behind it instead of cutting it.
+    const halo = new THREE.MeshBasicMaterial({
+      color: '#9fc8ff', transparent: true, opacity: 0.07,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const housingGeo = new THREE.BoxGeometry(13, 0.24, 0.8);
+    const lensGeo = new THREE.PlaneGeometry(12.5, 0.58);
+    const haloGeo = new THREE.PlaneGeometry(13.2, 1.3);
+
+    for (const z of [-4.4, 0, 4.4]) {
+      const bar = new THREE.Group();
+      const box = new THREE.Mesh(housingGeo, housing);
+      const face = new THREE.Mesh(lensGeo, lens);
+      face.rotation.x = Math.PI / 2;               // pointing at the floor
+      face.position.y = -0.13;
+      const glow = new THREE.Mesh(haloGeo, halo);
+      glow.rotation.x = Math.PI / 2;
+      glow.position.y = -0.16;
+      bar.add(box, face, glow);
+      bar.position.set(0, 5.9, z);
+      s.add(bar);
+
+      // and the light itself, hung just under its lens so the falloff lines up with it
+      const lamp = new THREE.PointLight('#dceaff', 130, 30, 2);
+      lamp.position.set(0, 5.5, z);
+      s.add(lamp);
+    }
+  }
+
   buildShowroom() {
     const s = (this.showroom = new THREE.Scene());
-    s.background = new THREE.Color('#0a0c10');
-    s.environment = this.envFor(null);
+    s.background = new THREE.Color('#12161c');
+    s.environment = this.studioEnv();
 
     const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(30, 48),
-      new THREE.MeshStandardMaterial({ color: '#0d1014', roughness: 0.42, metalness: 0.3 })
+      new THREE.CircleGeometry(30, 64),
+      new THREE.MeshStandardMaterial({ map: studioFloorTexture(), roughness: 0.36, metalness: 0.35 })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     s.add(floor);
 
+    // The pool of light the strips throw on the floor. A turntable standing in a black
+    // void gives the eye nothing to put the car on; this is the ground it stands on.
+    const pool = new THREE.Mesh(
+      new THREE.CircleGeometry(15, 64),
+      new THREE.MeshBasicMaterial({
+        map: glowTexture(), transparent: true, opacity: 0.16,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.006;
+    s.add(pool);
+
     const disc = new THREE.Mesh(
       new THREE.CylinderGeometry(3.9, 4.1, 0.18, 64),
-      new THREE.MeshStandardMaterial({ color: '#171b21', roughness: 0.5, metalness: 0.4 })
+      new THREE.MeshStandardMaterial({ color: '#232932', roughness: 0.42, metalness: 0.45 })
     );
     disc.position.y = -0.09;
     disc.receiveShadow = true;
@@ -186,16 +284,25 @@ class Game {
     ring.position.y = 0.01;
     s.add(ring);
 
-    const key = new THREE.DirectionalLight('#ffffff', 2.6);
+    this.addStudioStrips(s);
+
+    const key = new THREE.DirectionalLight('#ffffff', 3.1);
     key.position.set(6, 9, 7);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 });
     key.shadow.bias = -0.0008;
-    const rim = new THREE.DirectionalLight('#8fd8ff', 1.5);
+    const rim = new THREE.DirectionalLight('#9fdcff', 2.1);
     rim.position.set(-7, 4, -6);
-    const fill = new THREE.HemisphereLight('#cfe3ff', '#0a0c10', 0.8);
-    s.add(key, rim, fill);
+    // Low and warm from the front quarter. Every other lamp here is above the car, and
+    // something has to reach under the arches and along the sills or the bottom half of
+    // the car stays a silhouette however bright the top half is.
+    const kick = new THREE.DirectionalLight('#ffd9b4', 1.2);
+    kick.position.set(-5, 1.1, 9);
+    // The ground colour is the floor answering back. Near-black here was half the
+    // problem: it meant everything below the waistline was lit by nothing at all.
+    const fill = new THREE.HemisphereLight('#dfecff', '#3c4553', 1.5);
+    s.add(key, rim, kick, fill);
 
     this.showCar = null;
     this.showAngle = 0.6;

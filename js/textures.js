@@ -307,6 +307,47 @@ export function waterTexture() {
   });
 }
 
+// The showroom floor. It is a disc on an empty background, and once the studio was
+// bright enough to see, the rim of that disc became a hard horizon straight across the
+// screen. So the floor darkens to the background colour before it gets there: same
+// geometry, no edge. CircleGeometry lays its UVs out from the centre, so a radial
+// gradient lands exactly where it should.
+export function studioFloorTexture() {
+  return cached('studioFloor', () => {
+    const c = canvas(256, 256), ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(128, 128, 4, 128, 128, 128);
+    g.addColorStop(0, '#39424f');
+    g.addColorStop(0.28, '#2b323d');
+    g.addColorStop(0.62, '#1b2027');
+    g.addColorStop(0.88, '#12161c');
+    g.addColorStop(1, '#12161c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = maxAniso;
+    return t;
+  });
+}
+
+// The pool of light the showroom strips throw on the floor: white in the middle,
+// nothing at the edge, meant to be laid down additively.
+export function glowTexture() {
+  return cached('glow', () => {
+    const c = canvas(128, 128), ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 62);
+    g.addColorStop(0, 'rgba(255,255,255,0.42)');
+    g.addColorStop(0.45, 'rgba(236,244,255,0.30)');
+    g.addColorStop(0.78, 'rgba(210,228,255,0.10)');
+    g.addColorStop(1, 'rgba(200,220,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
 // Soft round shadow blob placed under each car.
 export function shadowTexture() {
   return cached('shadow', () => {
