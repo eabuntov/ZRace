@@ -179,7 +179,17 @@ export const CARS = [
     dims: { L: 4.77, W: 1.90, H: 1.69, wb: 2.85, wheelR: 0.36, tyre: 0.28 },
     mass: 1935, power: 205000, accel: 7.4, vTop: 46, grip: 0.96, brake: 0.95, agility: 0.96,
     ride: 0.21, hoodY: 1.17,
-    cab: { ws: 1.15, rf: 0.15, rb: -1.35, rg: -1.88 },
+    // The rear screen runs back almost to the tailgate, as it does on the car.
+    cab: { ws: 1.15, rf: 0.15, rb: -1.72, rg: -2.20 },
+    // The tail used to be a brick. `halfSection` blends between a cabin section, which
+    // has tumblehome, and a saloon's flat boot deck, and it picks between them on how far
+    // the window line sits below the roof: closer than 10cm and the section is all deck.
+    // The old stations walked the window line up to 1.50 under a 1.63 roof, so the last
+    // half-metre of the car was a full-width flat shelf with a vertical drop off the back
+    // of it - a boot lid, on a car that has no boot. The window line now stays low enough
+    // to keep the cabin section to the tailgate, the roof falls away over the last
+    // two-thirds of a metre instead of the last fifth, and the shoulders draw in over
+    // three stations rather than one.
     hull: [
       [2.38, 1.06, 1.00, 0.76, 0.99],
       [2.19, 1.11, 1.05, 0.90, 0.98],
@@ -188,11 +198,12 @@ export const CARS = [
       [0.99, 1.36, 1.13, 1.00, 0.88],
       [0.60, 1.59, 1.14, 1.00, 0.78],
       [0.20, 1.687, 1.16, 0.99, 0.74],
-      [-0.99, 1.68, 1.19, 1.00, 0.73],
-      [-1.39, 1.687, 1.22, 1.00, 0.70],
-      [-1.79, 1.63, 1.40, 0.99, 0.76],
-      [-2.19, 1.56, 1.50, 0.92, 0.88],
-      [-2.38, 1.42, 1.36, 0.76, 0.97],
+      [-0.99, 1.680, 1.190, 1.00, 0.73],
+      [-1.39, 1.686, 1.205, 1.00, 0.72],
+      [-1.74, 1.672, 1.235, 0.99, 0.74],   // roof runs level back to the spoiler lip
+      [-2.02, 1.580, 1.265, 0.96, 0.79],   // rear screen falls away
+      [-2.22, 1.440, 1.230, 0.90, 0.86],   // screen meets the top of the tailgate
+      [-2.38, 1.270, 1.130, 0.75, 0.95],   // tailgate, shoulders drawn in
     ],
     style: { cladding: true, front: 'split', rails: true, chrome: true },
     // One mesh, one material, the whole car baked into a single colour map - so the paint
