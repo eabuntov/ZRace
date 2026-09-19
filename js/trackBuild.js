@@ -640,18 +640,31 @@ export class TrackWorld {
     const pitSide = this.def.points.find((pt) => pt[2] && pt[2].pit)?.[2].pit || 'R';
     const grandSide = pitSide === 'R' ? 'L' : 'R';
 
-    // start gantry with the lights
+    // Start gantry with the lights.
+    //
+    // Its legs stand outside the barrier. Nothing in the scenery carries collision of its
+    // own - the only thing a car can strike is the track's own wall line - so a leg
+    // planted in the run-off is something a car drives straight through. Everything else
+    // along this straight (garages, pit wall, grandstands) is already measured off
+    // `wallL` / `wallR` for exactly that reason; the gantry was the one structure still
+    // measured from the centreline, which stood it inside the fence on four of the five
+    // circuits. Behind the barrier the car is kept off it by the barrier.
     const f = p.sampleAt(0);
     const gantry = new THREE.Group();
     const postMat = new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.6, metalness: 0.4 });
-    const span = p.halfW + 3.5;
-    for (const side of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 8, 0.6), postMat);
-      post.position.set(side * span, 4, 0);
+    const CLEAR = 1.4;                        // past the barrier, which stands at wall + 0.6
+    const uL = p.wallL[0] + CLEAR, uR = p.wallR[0] + CLEAR;
+    const span = p.halfW + 3.5;               // the banner still frames the road, not the run-off
+    for (const [side, u] of [[1, uL], [-1, uR]]) {
+      // The run-off can fall away from the road, so each leg is carried down to the
+      // ground it actually stands on rather than stopping at track level.
+      const drop = Math.max(0, f.y - this.terrainHeight(f.x + f.lx * side * u, f.z + f.lz * side * u));
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 8 + drop, 0.6), postMat);
+      post.position.set(side * u, 4 - drop / 2, 0);
       gantry.add(post);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(span * 2 + 0.6, 1.1, 0.7), postMat);
-    beam.position.y = 7.6;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(uL + uR + 0.6, 1.1, 0.7), postMat);
+    beam.position.set((uL - uR) / 2, 7.6, 0);
     gantry.add(beam);
     const bannerGeo = new THREE.PlaneGeometry(span * 1.7, 1.5);
     const bannerMat = new THREE.MeshStandardMaterial({ map: TEX.bannerTexture(this.def.city.toUpperCase(), '#12161d', '#f4f6f8'), roughness: 0.8 });
@@ -748,9 +761,15 @@ export class TrackWorld {
     const f = p.sampleAt(p.wrapS(-60));
     const g = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: '#dfe3e8', roughness: 0.5, metalness: 0.25 });
-    const span = p.halfW + 16;
+    // Its towers stand clear of the barrier too, and for the same reason as the start
+    // gantry's legs: a tower in the run-off is a tower a car drives through. The pair is
+    // kept symmetric about the road - the deck and the arch are built around one span -
+    // so the wider side sets the span, measured to the tower's inner face.
+    const TOWER_W = 10;
+    const span = Math.max(p.halfW + 16,
+      Math.max(p.wallL[f.i], p.wallR[f.i]) + 0.6 + TOWER_W / 2 + 0.8);
     for (const side of [-1, 1]) {
-      const tower = new THREE.Mesh(new THREE.BoxGeometry(10, 26, 14), mat);
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(TOWER_W, 26, 14), mat);
       tower.position.set(side * span, 13, 0);
       g.add(tower);
     }
