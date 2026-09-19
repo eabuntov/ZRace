@@ -29,6 +29,11 @@ export const SURFACES = {
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
+// How far the body leans, and how much more yaw the tyres will give than the steady-state
+// circle - the AI reads the same ceiling through maxYawRate(), so they share a constant.
+const ROLL_MAX = 0.055;
+const YAW_OVER = 1.15;
+
 export class Vehicle {
   constructor(spec, world) {
     this.spec = spec;
@@ -48,6 +53,9 @@ export class Vehicle {
     this.h = 0; this.omega = 0;
     this.vx = 0; this.vz = 0;
     this.speed = 0; this.vf = 0; this.vl = 0;
+    this.gear = 1;           // 1 = drive, -1 = reverse; see the gear latch in step()
+    this.tangDot = 1;        // how much of the car's nose points the way the track runs
+    this.rollLift = 0;
     this.slide = 0; this.steerAngle = 0; this.braking = false; this.reverse = false;
     this.surface = 'road';
     this.impact = 0; this.rumble = 0;
@@ -69,6 +77,7 @@ export class Vehicle {
     this.h = Math.atan2(f.tx, f.tz);
     this.vx = this.vz = this.vf = this.vl = this.omega = 0;
     this.speed = 0;
+    this.gear = 1;
     this.hint = -1;
     this.project();
     this.dist = this.proj.s + (opts.lapOffset || 0);
@@ -82,7 +91,9 @@ export class Vehicle {
   }
 
   // Peak front-wheel angle at this speed: plenty of lock for parking, very little at speed.
-  steerLimit(speed) { return (0.60 / (1 + speed * 0.058)) * this.spec.agility; }
+  // The fall-off used to be steep enough that a third-gear corner had barely any front
+  // end left, which is most of what made the cars feel like they would not turn.
+  steerLimit(speed) { return (0.62 / (1 + speed * 0.044)) * this.spec.agility; }
 
   // input: {throttle 0..1, brake 0..1, steer -1..1 (+ = right), handbrake, boost bool}
   update(dt, input) {
@@ -124,35 +135,55 @@ export class Vehicle {
     const latUse = Math.min(1, (Math.max(Math.abs(this.omega), omegaAsk) * speed) / latFull);
     // The handbrake is also the ESC-off switch: pull it and the motors get everything
     // again, which is how you hold a power-slide on purpose.
-    const driveShare = input.handbrake ? 1 : Math.max(0.3, Math.sqrt(1 - latUse * latUse));
+    const driveShare = input.handbrake ? 1 : Math.max(0.45, Math.sqrt(1 - latUse * latUse));
 
     // --- longitudinal ---
     let force = 0;
     const throttle = input.throttle || 0;
     const brake = input.brake || 0;
-    if (throttle > 0 && !(this.reverse && vf < 0)) {
+    // Reverse is a gear, not merely a negative speed. The brake pedal slows the car and
+    // engages reverse only once it has actually stopped; the throttle always drives
+    // forward, so it is what brings a car that is backing up to a halt again. Reading it
+    // the other way round - ignoring the throttle outright while vf was negative - left
+    // the handbrake as the only thing that would stop a reversing car.
+    //
+    // Only a driver who asked for the gear gets it. The AI brakes hard at low speed all
+    // the time - in traffic, gathering up a spin, slowing down after the flag - and none
+    // of it is a request to reverse back down the circuit.
+    if (throttle > 0) this.gear = 1;
+    else if (brake > 0 && input.allowReverse && vf > -0.05 && vf < 0.25) this.gear = -1;
+    else if (vf > 0.5) this.gear = 1;
+
+    if (throttle > 0) {
       const b = this.boosting ? BOOST_POWER : 1;
       force += throttle * Math.min(this.fMax * b, (this.power * b) / Math.max(Math.abs(vf), 4));
     }
     if (brake > 0) {
-      if (vf > 0.4) force -= brake * this.brakeAccel * this.mass;
-      else force -= brake * this.mass * 4.2; // reverse
+      if (this.gear < 0) force -= brake * this.mass * 4.2;              // backing up
+      else if (vf > 0.4) force -= brake * this.brakeAccel * this.mass;  // stopping
+      else if (vf < -0.4) force += brake * this.brakeAccel * this.mass; // rolled back on a hill
     }
     if (input.handbrake) force -= Math.sign(vf) * this.mass * 6.5;
     // traction limit - drive is capped by what the corner has left over, braking is not
     // (trail-braking should cost you grip, and that fall-off is handled by `circle` below)
     const tractionMax = grip * this.spec.grip * this.mass * G * 1.0;
     force = clamp(force, -tractionMax, tractionMax * driveShare);
+    // What the motors and brakes are doing, before the air and the hill have their say.
+    // This is the figure the power read-out wants: drag is not something the driver is
+    // spending, and counting it made the gauge swing negative while simply coasting.
+    const driveForce = force;
     // resistance
     force -= Math.sign(vf) * (this.cd * vf * vf + this.crr + surf.drag * this.mass * 0.1);
     // gravity along the slope
     const tangDot = this.proj.tx ? fwdX * this.proj.tx + fwdZ * this.proj.tz : 1;
+    this.tangDot = tangDot;
     force -= this.mass * G * (this.proj.slope || 0) * tangDot;
 
     const aLong = force / this.mass;
     const vfNew = vf + aLong * dt;
-    // don't let braking drag the car backwards past a stop
-    if (brake > 0 && vf > 0 && vfNew < 0 && !input.allowReverse) vf = 0;
+    // Braking holds the car at a standstill rather than dragging it backwards through
+    // one; reverse is reached by holding the brake once stopped, via the gear latch.
+    if (brake > 0 && this.gear >= 0 && vf > 0 && vfNew < 0) vf = 0;
     else vf = vfNew;
     if (vf < -9) vf = -9;
     const vTopLimit = this.spec.vTop * 1.02 * (this.boosting ? BOOST_VTOP : 1);
@@ -167,12 +198,14 @@ export class Vehicle {
     let latCap = this.latMax * grip * circle * (input.handbrake ? 0.55 : 1);
     // Steering maps linearly onto the yaw rate the car can actually achieve: at low
     // speed that is the geometric limit, at speed it is what the tyres will hold.
-    const over = input.handbrake ? 1.75 : 1.08;
+    const over = input.handbrake ? 1.75 : YAW_OVER;
     const kinMax = (Math.abs(vf) / this.wb) * Math.tan(steerMax);
     const gripMax = (latCap / Math.max(sp, 3.2)) * over;
     const maxOmega = Math.min(kinMax, gripMax);
     const target = -steerIn * maxOmega;
-    const response = 1 - Math.exp(-dt * 8.5 * this.spec.agility);
+    // How fast the car takes up the yaw it has been asked for. This is the delay between
+    // turning the wheel and the nose moving, and it was long enough to feel like slack.
+    const response = 1 - Math.exp(-dt * 12 * this.spec.agility);
     this.omega += (target - this.omega) * response;
     if (sp < 0.4) this.omega *= 0.6;
     this.h += this.omega * dt;
@@ -194,7 +227,12 @@ export class Vehicle {
     this.speed = Math.hypot(this.vx, this.vz);
     this.reverse = vf < -0.2;
     this.braking = (input.brake || 0) > 0.05 && vf > 0.5;
-    this.powerDraw = (force > 0 ? force * Math.max(vf, 0) : Math.min(0, force * Math.max(vf, 0) * 0.4)) / 1000;
+    // Power at the wheels: what the motors are putting down, or - under braking - what
+    // is coming back the other way. Regen is a fraction of the stop (the friction brakes
+    // do the rest) and is capped the way a real pack's charge rate is, so the needle
+    // means something rather than swinging to a megawatt every time you lift.
+    const mech = (driveForce * vf) / 1000;
+    this.powerDraw = mech >= 0 ? mech : Math.max(mech * 0.4, (-this.power * 0.35) / 1000);
 
     // --- track position, surface, barriers ---
     this.project();
@@ -232,12 +270,21 @@ export class Vehicle {
     this.dist += ds;
     this.lastS = this.proj.s;
 
-    // visual attitude
-    const targetPitch = -Math.atan(this.proj.slope || 0) - clamp(this.accelLong * 0.004, -0.05, 0.05);
-    const targetRoll = clamp(-this.accelLat * 0.009, -0.09, 0.09);
+    // Visual attitude. The slope is measured along the track, so it has to be taken in
+    // the direction the car is actually pointing: nose-to-tail down the circuit it is a
+    // climb, turned round it is a descent. Without that factor a car facing the wrong way
+    // sat dead level on a hill while the road under it fell away.
+    const targetPitch = -Math.atan((this.proj.slope || 0) * this.tangDot)
+      - clamp(this.accelLong * 0.004, -0.05, 0.05);
+    const targetRoll = clamp(-this.accelLat * 0.009, -ROLL_MAX, ROLL_MAX);
     const k = 1 - Math.exp(-dt * 6);
     this.pitch += (targetPitch - this.pitch) * k;
     this.roll += (targetRoll - this.roll) * k;
+    // The whole car is one rigid mesh, so rolling it about its own origin - which sits on
+    // the road - drives the inside wheels through the tarmac and lifts the outside pair
+    // clear of it. Raising the body by as much as the low side dropped puts that side back
+    // on the ground, and what is left reads as a car leaning on its springs.
+    this.rollLift = Math.abs(Math.sin(this.roll)) * this.spec.dims.W * 0.5;
     const surf = SURFACES[this.surface] || SURFACES.road;
     this.rumble = surf.rumble * Math.min(1, this.speed / 25);
 
@@ -258,14 +305,16 @@ export class Vehicle {
     const surf = SURFACES[this.surface] || SURFACES.road;
     const sp = Math.max(this.speed, 3.2);
     const kinMax = (Math.abs(this.vf) / this.wb) * Math.tan(this.steerLimit(sp));
-    const gripMax = (this.latMax * surf.grip * 1.08) / sp;
+    const gripMax = (this.latMax * surf.grip * YAW_OVER) / sp;
     return Math.max(0.02, Math.min(kinMax, gripMax));
   }
 
+  // Back onto the centreline facing the right way, stopped, where the car already is.
+  // It used to rejoin six metres back down the road, which meant holding R walked the
+  // car backwards along the circuit a rejoin at a time.
   respawn() {
-    const s = this.proj.s;
     const before = this.dist;
-    this.placeAt(s - 6, 0);
+    this.placeAt(this.proj.s, 0);
     this.dist = before;
     this.lastS = this.proj.s;
   }

@@ -195,7 +195,12 @@ export const CARS = [
       [-2.38, 1.42, 1.36, 0.76, 0.97],
     ],
     style: { cladding: true, front: 'split', rails: true, chrome: true },
+    // One mesh, one material, the whole car baked into a single colour map - so the paint
+    // is carried by that map rather than by a material of its own. See tintAtlas(). The
+    // box is where the four polished alloys sit in that map: they are as bright and as
+    // colourless as the white bodywork, so nothing but their address tells them apart.
     model: 'assets/cars/geely_monjaro.glb',
+    paintAtlas: { keepOut: [[0, 0.75, 0.47, 0.89]] },
     paint: 1,
   },
   {

@@ -25,6 +25,8 @@ export default {
   'stats.top': 'VELOCIDAD PUNTA',
   'stats.grip': 'AGARRE',
   'stats.weight': 'PESO',
+  'stats.agility': 'AGILIDAD',
+  'stats.braking': 'FRENADA',
 
   'track.heading': 'Elige un circuito',
   'track.start': 'EMPEZAR CARRERA ›',

@@ -26,6 +26,8 @@ export default {
   'stats.top': 'МАКС. СКОРОСТЬ',
   'stats.grip': 'СЦЕПЛЕНИЕ',
   'stats.weight': 'МАССА',
+  'stats.agility': 'УПРАВЛЯЕМОСТЬ',
+  'stats.braking': 'ТОРМОЗА',
 
   'track.heading': 'Выберите трассу',
   'track.start': 'НАЧАТЬ ГОНКУ ›',

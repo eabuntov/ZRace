@@ -185,7 +185,7 @@ export const TRACKS = [
       treeDensity: 0.25,
       buildings: { density: 0.9, minH: 12, maxH: 45, palette: ['#f1e3c6', '#e9c9a3', '#f3d6cf', '#fbf4e6', '#e2b98f', '#d9d2c3'] },
       grandstands: { count: 3, len: 24, gap: 34 },
-      banner: 'MONACO',
+      banner: 'MONTE CARLO',
       yachts: 26,
     },
   },

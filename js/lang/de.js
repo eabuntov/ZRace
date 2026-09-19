@@ -25,6 +25,8 @@ export default {
   'stats.top': 'HÖCHSTTEMPO',
   'stats.grip': 'GRIP',
   'stats.weight': 'GEWICHT',
+  'stats.agility': 'AGILITÄT',
+  'stats.braking': 'BREMSEN',
 
   'track.heading': 'Kurs wählen',
   'track.start': 'RENNEN STARTEN ›',

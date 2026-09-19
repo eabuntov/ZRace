@@ -25,6 +25,8 @@ export default {
   'stats.top': '最高速',
   'stats.grip': 'グリップ',
   'stats.weight': '車重',
+  'stats.agility': '運動性能',
+  'stats.braking': '制動力',
 
   'track.heading': 'コースを選ぶ',
   'track.start': 'レース開始 ›',

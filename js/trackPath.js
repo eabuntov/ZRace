@@ -211,6 +211,34 @@ export class TrackPath {
     this.wallL = new Float32Array(n); this.wallR = new Float32Array(n);
     for (let i = 0; i < n; i++) { this.wallL[i] = halfW + sl[i]; this.wallR[i] = halfW + sr[i]; }
 
+    // An offset curve folds through itself wherever the inside of a corner is pushed out
+    // further than that corner's own radius: past the centre of the arc the edge turns
+    // inside out, and the ribbon built on it self-intersects - which is what tore the
+    // barriers and the run-off open at the hairpins. Suzuka's was the worst, asking for
+    // an inside edge 1.65 times its own radius. Holding each inside edge comfortably
+    // within its radius keeps the geometry a simple ribbon; the road itself is never
+    // wide enough to need it, so nothing drivable is narrowed by this.
+    const SAFE = 0.85;
+    const innerLimit = (i) => {
+      const kk = Math.abs(this.k[i]);
+      return kk < 1e-6 ? Infinity : Math.max(halfW + 0.5, SAFE / kk);
+    };
+    for (let pass = 0; pass < 4; pass++) {
+      for (let i = 0; i < n; i++) {
+        const lim = innerLimit(i);
+        if (this.k[i] > 0) { if (this.wallL[i] > lim) this.wallL[i] = lim; }
+        else if (this.k[i] < 0) { if (this.wallR[i] > lim) this.wallR[i] = lim; }
+      }
+      // A hard clamp leaves a corner in the edge; three samples of averaging take it out,
+      // and the next pass puts back anything the averaging lifted over the limit again.
+      for (const w of [this.wallL, this.wallR]) {
+        const src = Float32Array.from(w);
+        for (let i = 0; i < n; i++) {
+          w[i] = (src[this.wrapI(i - 1)] + src[i] * 2 + src[this.wrapI(i + 1)]) / 4;
+        }
+      }
+    }
+
     // Kerbs through corners, extended a little either side.
     this.kerb = new Uint8Array(n);
     if (def.noKerbs) return;

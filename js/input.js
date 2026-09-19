@@ -14,6 +14,8 @@ export class Input {
     this.keys = new Set();
     this.touch = { up: false, down: false, left: false, right: false, handbrake: false, boost: false };
     this.steer = 0;
+    // allowReverse marks this as a human at the controls: holding the brake at a
+    // standstill is meant to select reverse. The AI's inputs carry no such flag.
     this.state = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, allowReverse: true };
     this.actions = new Map();
     this.enabled = true;
@@ -71,8 +73,10 @@ export class Input {
       break;
     }
 
-    // smooth the digital steering so it feels analogue
-    const rate = steerTarget === 0 ? 6.5 : 4.2;
+    // Smooth the digital steering so it feels analogue - but only just. Taking a quarter
+    // of a second to reach full lock stacked on top of the car's own yaw response, and
+    // the two together were felt as a car that would not answer the wheel.
+    const rate = steerTarget === 0 ? 11 : 9;
     this.steer += (steerTarget - this.steer) * Math.min(1, dt * rate);
     if (Math.abs(this.steer) < 0.004) this.steer = 0;
 

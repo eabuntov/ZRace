@@ -25,6 +25,8 @@ export default {
   'stats.top': 'VELOCITÀ MAX',
   'stats.grip': 'GRIP',
   'stats.weight': 'PESO',
+  'stats.agility': 'AGILITÀ',
+  'stats.braking': 'FRENATA',
 
   'track.heading': 'Scegli un circuito',
   'track.start': 'INIZIA LA GARA ›',

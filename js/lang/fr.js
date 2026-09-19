@@ -25,6 +25,8 @@ export default {
   'stats.top': 'VITESSE MAXI',
   'stats.grip': 'ADHÉRENCE',
   'stats.weight': 'POIDS',
+  'stats.agility': 'AGILITÉ',
+  'stats.braking': 'FREINAGE',
 
   'track.heading': 'Choisissez un circuit',
   'track.start': 'LANCER LA COURSE ›',

@@ -391,6 +391,10 @@ class Game {
       this.ui.show('car');
       this.state = 'menu';
     } else if (target === 'track') {
+      // Reached from the car screen, and from CHANGE CIRCUIT on the results screen - in
+      // which case the race behind it has to be torn down, or its scene goes on rendering
+      // (and its cars go on driving) underneath the menu.
+      if (this.state !== 'menu') this.endRace(true);
       this.ui.show('track');
     } else if (target === 'controls') {
       this.ui.show('controls');
@@ -494,7 +498,14 @@ class Game {
 
   bindKeys() {
     this.input.on('KeyC', () => { if (this.state === 'racing' || this.state === 'finished') this.camMode = (this.camMode + 1) % CAM_MODES.length; });
-    this.input.on('KeyR', () => { if (this.state === 'racing' && this.player) this.player.respawn(); });
+    // Rejoining is rate-limited: a rejoin is a teleport, and holding R down a dozen times
+    // a second is not something any circuit should have to answer for.
+    this.input.on('KeyR', () => {
+      if (this.state !== 'racing' || !this.player) return;
+      if (this.raceTime - this.lastRespawn < 1.5) return;
+      this.lastRespawn = this.raceTime;
+      this.player.respawn();
+    });
     this.input.on('KeyM', () => { this.audio.setMuted(!this.audio.muted); this.ui.message(t(this.audio.muted ? 'msg.muted' : 'msg.soundOn'), '', 900); });
     const pause = () => {
       if (this.state === 'racing' || this.state === 'countdown') this.pause();
@@ -575,6 +586,8 @@ class Game {
     this.camMode = 0;
     this.wrongWay = 0;
     this.finishTimer = 0;
+    this.resultsShown = false;
+    this.lastRespawn = -99;
     this.world.setStartLights(0);
     this.ui.lights(0, true);
     this.ui.hudVisible(true);
@@ -708,7 +721,14 @@ class Game {
           input = this.input.state;
         }
       }
-      if (car.race.finished && car.ai) input = { ...input, throttle: input.throttle * 0.5 };
+      // A driver who has taken the flag does a slow-down lap and parks, rather than
+      // circulating for ever because the player never finished and nothing ever ended
+      // the race. Steering still comes from the AI, so they pull up on the track and
+      // not into a barrier.
+      if (car.race.finished && car.ai) {
+        const coast = Math.max(0, 1 - (this.raceTime - car.race.finishTime) / 6);
+        input = { ...input, throttle: input.throttle * coast * 0.5, brake: coast < 0.35 ? 0.5 : 0, boost: false };
+      }
       car.update(dt, input);
       // and no stuck time is banked while waiting, so nobody is a second from being
       // respawned the moment the race actually starts
@@ -737,8 +757,15 @@ class Game {
       }
     }
 
-    // standings
-    const order = [...cars].sort((a, b) => b.dist - a.dist);
+    // Standings. Cars that have taken the flag are ranked by when they took it and always
+    // ahead of cars still running, because once a driver has finished they stop and their
+    // distance stops growing - sorting the lot on distance alone had them sink back down
+    // the order while they parked.
+    const order = [...cars].sort((a, b) => {
+      if (a.race.finished && b.race.finished) return a.race.finishTime - b.race.finishTime;
+      if (a.race.finished !== b.race.finished) return a.race.finished ? -1 : 1;
+      return b.dist - a.dist;
+    });
     order.forEach((c, i) => { c.pos = i + 1; });
     this.order = order;
 
@@ -755,7 +782,7 @@ class Game {
 
     // meshes
     for (const car of cars) {
-      car.mesh.position.set(car.x, car.y, car.z);
+      car.mesh.position.set(car.x, car.y + car.rollLift, car.z);
       car.mesh.rotation.set(car.pitch, car.h, car.roll);
       animateCar(car.mesh, car, dt);
     }
@@ -765,9 +792,12 @@ class Game {
       sh.rotation.z = -c.h;
     });
 
-    if (this.state === 'finished') {
+    // The results screen is shown once, a beat after the flag. Re-testing whether it is
+    // the screen on display meant that leaving it - CHANGE CIRCUIT, say - put it straight
+    // back up on the very next frame, so those buttons looked dead.
+    if (this.state === 'finished' && !this.resultsShown) {
       this.finishTimer += dt;
-      if (this.finishTimer > 2.6 && this.ui.current !== 'results') this.showResults();
+      if (this.finishTimer > 2.6) { this.resultsShown = true; this.showResults(); }
     }
   }
 
@@ -850,9 +880,13 @@ class Game {
       this.camera.rotation.z = -p.roll * 0.5;
       return;
     }
-    // the camera trails the car's velocity direction so slides look dramatic
+    // The camera trails the car's velocity direction so slides look dramatic - but only
+    // while the car is going forwards. Reversing turns the velocity round, which swung the
+    // camera to the far side of the car and left you steering towards your own bonnet.
     const vel = new THREE.Vector3(p.vx, 0, p.vz);
-    const dir = vel.lengthSq() > 9 ? vel.normalize().lerp(fwd, 0.45).normalize() : fwd.clone();
+    const dir = vel.lengthSq() > 9 && p.vf > 0.5
+      ? vel.normalize().lerp(fwd, 0.45).normalize()
+      : fwd.clone();
     const want = target.clone().addScaledVector(dir, -mode.back).setY(p.y + mode.up);
     const k = 1 - Math.exp(-dt * 6.5);
     this.camPos.lerp(want, k);

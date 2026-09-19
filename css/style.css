@@ -269,8 +269,15 @@ table.results.records td.empty { color: var(--muted); text-align: center; paddin
 
 /* touch */
 .touch { position: absolute; inset: 0; pointer-events: none; }
-.touch-left { position: absolute; left: 16px; bottom: 20px; display: flex; gap: 12px; pointer-events: auto; }
-.touch-right { position: absolute; right: 16px; bottom: 20px; display: flex; gap: 12px; pointer-events: auto; }
+.touch-left, .touch-right {
+  position: absolute; bottom: 20px; display: flex; gap: 12px; pointer-events: auto;
+  /* Neither cluster may claim more than its half of the screen. Both used to be laid
+     out in one row regardless of width, and on a portrait phone the row on the right
+     reached far enough across that BRAKE sat under the right-steer button. */
+  max-width: calc(50vw - 20px);
+}
+.touch-left { left: max(16px, env(safe-area-inset-left)); }
+.touch-right { right: max(16px, env(safe-area-inset-right)); justify-content: flex-end; }
 .touch button { width: 86px; height: 86px; border-radius: 50%; font-size: 26px; background: rgba(255,255,255,0.1); backdrop-filter: blur(4px); }
 .touch button.on { background: var(--accent); color: #04120c; }
 .touch-right button { font-size: 13px; }
@@ -292,4 +299,30 @@ table.results.records td.empty { color: var(--muted); text-align: center; paddin
   #dial { width: 190px; height: 190px; }
   .dial-read span { font-size: 40px; }
   #minimap { width: 150px; height: 150px; }
+}
+
+/* Portrait, or any screen too narrow for two rows of pedals side by side: the right-hand
+   cluster becomes a column with GO under the thumb and BRAKE above it, which is the shape
+   a phone held upright can actually reach as well as the one that fits. The gauges then
+   have to move up out of its way - a 190px dial in the bottom corner is exactly where the
+   pedals now are - and vertical room is the one thing a phone held upright has to spare. */
+@media (orientation: portrait), (max-width: 700px) {
+  .touch-left, .touch-right { bottom: max(16px, env(safe-area-inset-bottom)); gap: 10px; }
+  .touch-right { flex-direction: column; align-items: flex-end; }
+  .touch button { width: 74px; height: 74px; font-size: 22px; }
+  /* after the rule above, and no more specific than it: the arrows want a big glyph, the
+     lettered pedals want text that fits inside the circle */
+  .touch-right button { font-size: 11px; padding: 0 6px; overflow: hidden; }
+  .touch button.boost-btn { width: 58px; height: 58px; font-size: 9.5px; }
+
+  .hud-corner { padding: 10px; }
+  .hud-corner.br { bottom: 236px; }          /* clear of the BRAKE / BOOST / GO column */
+  .hud-corner.bl { bottom: 84px; }           /* clear of the steering arrows */
+  .dial-wrap, #dial { width: 150px; height: 150px; }
+  .dial-read span { font-size: 34px; }
+  .dial-read small { font-size: 9px; }
+  /* clear of the boost bar, which keeps its own 14px off the bottom */
+  .dial-sub { bottom: 42px; font-size: 10px; white-space: nowrap; }
+  .boost { width: 112px; }
+  #minimap { width: 118px; height: 118px; }
 }

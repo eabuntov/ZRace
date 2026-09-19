@@ -891,6 +891,22 @@ export class TrackWorld {
     const placements = kinds.map(() => []);
     const totalW = kinds.reduce((a, k) => a + k.weight, 0) || 1;
 
+    // Buildings are sited first so the trees can be told where not to stand. Scattering
+    // the two independently is what grew trees up through people's living rooms.
+    const spots = this._buildingSpots();
+    // A tree is clear of a building if it is outside its footprint - tested in the
+    // building's own frame, since the boxes are turned to face the circuit.
+    const insideBuilding = (x, z) => {
+      for (const o of spots) {
+        const dx = x - o.x, dz = z - o.z;
+        if (Math.abs(dx) > 30 || Math.abs(dz) > 30) continue;
+        // the inverse of the turn the instance is given: local = Rᵀ · world
+        const c = Math.cos(o.rot), s = Math.sin(o.rot);
+        if (Math.abs(dx * c - dz * s) < o.w / 2 + 2.5 && Math.abs(dx * s + dz * c) < o.d / 2 + 2.5) return true;
+      }
+      return false;
+    };
+
     const step = Math.max(1, Math.round(9 / p.spacing));
     for (let i = 0; i < p.n; i += step) {
       for (const side of [1, -1]) {
@@ -903,6 +919,7 @@ export class TrackWorld {
         if (near && near.d < Math.max(p.wallL[near.i], p.wallR[near.i]) + 4) continue;
         const y = this.terrainHeight(x, z);
         if (t.water && y < t.water.level + 0.5) continue;
+        if (insideBuilding(x, z)) continue;
         let r = this.rnd() * totalW, pick = 0;
         for (let k = 0; k < kinds.length; k++) { r -= kinds[k].weight; if (r <= 0) { pick = k; break; } }
         placements[pick].push({ x, y, z, s: 0.7 + this.rnd() * 0.7, rot: this.rnd() * Math.PI * 2 });
@@ -937,49 +954,68 @@ export class TrackWorld {
     });
 
     // buildings
-    const bcfg = t.buildings;
-    if (bcfg && bcfg.density > 0) {
-      const spots = [];
-      const bstep = Math.max(1, Math.round(26 / p.spacing));
-      for (let i = 0; i < p.n; i += bstep) {
-        for (const side of [1, -1]) {
-          if (this.rnd() > bcfg.density) continue;
-          const wall = side > 0 ? p.wallL[i] : p.wallR[i];
-          const u = side * (wall + 16 + this.rnd() * 26);
-          const x = p.x[i] + p.lx[i] * u, z = p.z[i] + p.lz[i] * u;
-          const near = this.nearestSample(x, z, 46);
-          if (near && near.d < Math.max(p.wallL[near.i], p.wallR[near.i]) + 12) continue;
-          const y = this.terrainHeight(x, z);
-          if (t.water && y < t.water.level + 1) continue;
-          spots.push({ x, y, z, rot: Math.atan2(p.tx[i], p.tz[i]) + (this.rnd() - 0.5) * 0.3,
-            h: bcfg.minH + this.rnd() * (bcfg.maxH - bcfg.minH), w: 12 + this.rnd() * 16, d: 12 + this.rnd() * 14,
-            c: bcfg.palette[(this.rnd() * bcfg.palette.length) | 0] });
+    if (spots.length) {
+      const dusk = t.sun.elevation < 20;
+      const mat = new THREE.MeshStandardMaterial({
+        map: TEX.repeated(TEX.facadeTexture('#ffffff', dusk, 6), 2, 3),
+        emissiveMap: dusk ? TEX.facadeEmissive(6) : null,
+        emissive: new THREE.Color(dusk ? '#ffc27a' : '#000'),
+        emissiveIntensity: dusk ? 0.9 : 0,
+        roughness: 0.9,
+      });
+      const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, spots.length);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+      const col = new THREE.Color();
+      spots.forEach((o, i) => {
+        // `o.y` is the lowest ground the footprint covers and `o.sink` how far the ground
+        // falls across it, so the box starts below the low corner and is tall enough to
+        // reach its full height above it. A building cut into a slope is right; one
+        // hanging in the air off the downhill corner is what this replaces.
+        pos.set(o.x, o.y - o.sink / 2 + o.h / 2, o.z);
+        q.setFromAxisAngle(UP, o.rot);
+        sc.set(o.w, o.h + o.sink, o.d);
+        inst.setMatrixAt(i, m.compose(pos, q, sc));
+        inst.setColorAt(i, col.set(o.c));
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      inst.frustumCulled = false;
+      this.track(inst, true, true);
+    }
+  }
+
+  // Where the buildings stand. Each one is measured against the ground it actually covers
+  // rather than the single point at its centre: a twenty-six metre box on a hillside sat
+  // level with its middle leaves two corners buried and two hanging in mid-air.
+  _buildingSpots() {
+    const p = this.path, t = this.theme, bcfg = t.buildings;
+    const spots = [];
+    if (!bcfg || !(bcfg.density > 0)) return spots;
+    const bstep = Math.max(1, Math.round(26 / p.spacing));
+    for (let i = 0; i < p.n; i += bstep) {
+      for (const side of [1, -1]) {
+        if (this.rnd() > bcfg.density) continue;
+        const wall = side > 0 ? p.wallL[i] : p.wallR[i];
+        const u = side * (wall + 16 + this.rnd() * 26);
+        const x = p.x[i] + p.lx[i] * u, z = p.z[i] + p.lz[i] * u;
+        const near = this.nearestSample(x, z, 46);
+        if (near && near.d < Math.max(p.wallL[near.i], p.wallR[near.i]) + 12) continue;
+        const rot = Math.atan2(p.tx[i], p.tz[i]) + (this.rnd() - 0.5) * 0.3;
+        const h = bcfg.minH + this.rnd() * (bcfg.maxH - bcfg.minH);
+        const w = 12 + this.rnd() * 16, d = 12 + this.rnd() * 14;
+        // the ground under all four corners, in the building's own frame
+        const c = Math.cos(rot), s = Math.sin(rot);
+        let lo = Infinity, hi = -Infinity;
+        for (const [ox, oz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2], [0, 0]]) {
+          const gy = this.terrainHeight(x + ox * c + oz * s, z - ox * s + oz * c);
+          if (gy < lo) lo = gy;
+          if (gy > hi) hi = gy;
         }
-      }
-      if (spots.length) {
-        const dusk = t.sun.elevation < 20;
-        const mat = new THREE.MeshStandardMaterial({
-          map: TEX.repeated(TEX.facadeTexture('#ffffff', dusk, 6), 2, 3),
-          emissiveMap: dusk ? TEX.facadeEmissive(6) : null,
-          emissive: new THREE.Color(dusk ? '#ffc27a' : '#000'),
-          emissiveIntensity: dusk ? 0.9 : 0,
-          roughness: 0.9,
-        });
-        const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, spots.length);
-        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
-        const col = new THREE.Color();
-        spots.forEach((o, i) => {
-          pos.set(o.x, o.y + o.h / 2, o.z);
-          q.setFromAxisAngle(UP, o.rot);
-          sc.set(o.w, o.h, o.d);
-          inst.setMatrixAt(i, m.compose(pos, q, sc));
-          inst.setColorAt(i, col.set(o.c));
-        });
-        inst.instanceMatrix.needsUpdate = true;
-        inst.frustumCulled = false;
-        this.track(inst, true, true);
+        if (t.water && lo < t.water.level + 1) continue;
+        spots.push({ x, y: lo, z, rot, h, w, d, sink: Math.min(hi - lo, 40),
+          c: bcfg.palette[(this.rnd() * bcfg.palette.length) | 0] });
       }
     }
+    return spots;
   }
 
   update(dt, elapsed) {

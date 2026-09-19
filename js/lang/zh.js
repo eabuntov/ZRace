@@ -24,6 +24,8 @@ export default {
   'stats.top': '最高时速',
   'stats.grip': '抓地力',
   'stats.weight': '整备质量',
+  'stats.agility': '敏捷性',
+  'stats.braking': '制动力',
 
   'track.heading': '选择赛道',
   'track.start': '开始比赛 ›',

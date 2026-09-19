@@ -34,6 +34,8 @@ export default {
   'stats.top': 'TOP SPEED',
   'stats.grip': 'GRIP',
   'stats.weight': 'WEIGHT',
+  'stats.agility': 'AGILITY',
+  'stats.braking': 'BRAKING',
 
   // ----------------------------------------------------------- track select
   'track.heading': 'Choose a circuit',

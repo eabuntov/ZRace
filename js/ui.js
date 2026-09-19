@@ -107,11 +107,18 @@ export class UI {
     $('carName').textContent = spec.name;
     $('carType').textContent = t(`car.${spec.id}.type`);
     $('carTagline').textContent = t(`car.${spec.id}.tagline`);
+    // Every figure here is one the physics actually reads - agility sets how fast the car
+    // takes up the yaw it is asked for and how much lock it has, braking sets the
+    // deceleration - so the panel is a description of how the car will drive, not
+    // decoration. Those two were the ones being felt from the driving seat and not shown.
+    const brakeG = (11.2 * spec.brake) / 9.81;
     const rows = [
       [t('stats.power'), `${num(spec.power / 1000)} ${t('unit.kw')}`, spec.power / 950000],
       [t('stats.accel'), `${num(spec.accel, 1)} ${t('unit.s')}`, 1 - (spec.accel - 2) / 3.2],
       [t('stats.top'), `${num(spec.vTop * 3.6)} ${t('unit.kmh')}`, (spec.vTop - 45) / 40],
       [t('stats.grip'), `${num(spec.grip, 2)} ${t('unit.g')}`, (spec.grip - 0.85) / 0.45],
+      [t('stats.braking'), `${num(brakeG, 2)} ${t('unit.g')}`, (brakeG - 1.0) / 0.55],
+      [t('stats.agility'), num(spec.agility, 2), (spec.agility - 0.9) / 0.32],
       [t('stats.weight'), `${num(spec.mass)} ${t('unit.kg')}`, 1 - (spec.mass - 1800) / 1200],
     ];
     $('carStats').innerHTML = rows.map(([k, v, f]) => `
@@ -340,7 +347,10 @@ export class UI {
     if (d.lap !== this.lastHud.lap) $('lap').textContent = d.lap;
     if (d.laps !== this.lastHud.laps) $('lapTotal').textContent = d.laps;
     $('kmh').textContent = Math.round(d.kmh);
-    $('powerRead').textContent = `${d.power >= 0 ? '' : '−'}${num(Math.abs(d.power))} ${t('unit.kw')}`;
+    // Named, because a bare number of kilowatts beside a speed says nothing about what it
+    // is counting. Negative is the car putting charge back in under braking.
+    $('powerRead').textContent =
+      `${t('stats.power')} ${d.power >= 0 ? '' : '−'}${num(Math.abs(d.power))} ${t('unit.kw')}`;
     $('tCur').textContent = formatTime(d.current);
     $('tLast').textContent = formatTime(d.last);
     $('tBest').textContent = formatTime(d.best);

@@ -193,7 +193,9 @@ export class AIDriver {
       && speed > v.spec.vTop * 0.45;
 
     // --- recovery ---
-    if (v.stuck > 3) {
+    // A driver who has already taken the flag is meant to be slowing to a stop, so
+    // standing still is not evidence of being stuck and must not trigger a rejoin.
+    if (v.stuck > 3 && !(v.race && v.race.finished)) {
       v.respawn();
       v.stuck = 0;
     }
