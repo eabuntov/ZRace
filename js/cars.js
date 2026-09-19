@@ -181,6 +181,10 @@ export const CARS = [
     ride: 0.21, hoodY: 1.17,
     // The rear screen runs back almost to the tailgate, as it does on the car.
     cab: { ws: 1.15, rf: 0.15, rb: -1.72, rg: -2.20 },
+    // A coupe-ish SUV, and built to read as one beside the Tiggo 8: a lower roof that
+    // starts falling before the rear axle, a window line that rises to meet it, and
+    // enough tumblehome to pull the glass house in off the shoulders. Body-colour roof
+    // and no rails. See the Tiggo's note for the other half of the comparison.
     // The tail used to be a brick. `halfSection` blends between a cabin section, which
     // has tumblehome, and a saloon's flat boot deck, and it picks between them on how far
     // the window line sits below the roof: closer than 10cm and the section is all deck.
@@ -195,17 +199,17 @@ export const CARS = [
       [2.19, 1.11, 1.05, 0.90, 0.98],
       [1.79, 1.16, 1.10, 0.99, 0.97],
       [1.39, 1.17, 1.11, 1.00, 0.95],
-      [0.99, 1.36, 1.13, 1.00, 0.88],
-      [0.60, 1.59, 1.14, 1.00, 0.78],
-      [0.20, 1.687, 1.16, 0.99, 0.74],
-      [-0.99, 1.680, 1.190, 1.00, 0.73],
-      [-1.39, 1.686, 1.205, 1.00, 0.72],
-      [-1.74, 1.672, 1.235, 0.99, 0.74],   // roof runs level back to the spoiler lip
-      [-2.02, 1.580, 1.265, 0.96, 0.79],   // rear screen falls away
-      [-2.22, 1.440, 1.230, 0.90, 0.86],   // screen meets the top of the tailgate
-      [-2.38, 1.270, 1.130, 0.75, 0.95],   // tailgate, shoulders drawn in
+      [0.99, 1.330, 1.130, 1.00, 0.88],    // long bonnet, screen laid back
+      [0.60, 1.560, 1.145, 1.00, 0.77],
+      [0.20, 1.655, 1.165, 0.99, 0.72],
+      [-0.99, 1.660, 1.205, 1.00, 0.70],
+      [-1.39, 1.650, 1.235, 1.00, 0.69],   // roof already easing down
+      [-1.74, 1.610, 1.255, 0.99, 0.71],   // and falling by the spoiler lip
+      [-2.02, 1.520, 1.245, 0.96, 0.77],   // rear screen falls away
+      [-2.22, 1.400, 1.185, 0.90, 0.85],   // screen meets the top of the tailgate
+      [-2.38, 1.250, 1.120, 0.75, 0.95],   // tailgate, shoulders drawn in
     ],
-    style: { cladding: true, front: 'split', rails: true, chrome: true },
+    style: { cladding: true, front: 'split', chrome: true, flare: 0.02 },
     // One mesh, one material, the whole car baked into a single colour map - so the paint
     // is carried by that map rather than by a material of its own. See tintAtlas(). The
     // box is where the four polished alloys sit in that map: they are as bright and as
@@ -222,23 +226,32 @@ export const CARS = [
     dims: { L: 4.72, W: 1.86, H: 1.75, wb: 2.71, wheelR: 0.36, tyre: 0.28 },
     mass: 1990, power: 240000, accel: 5.9, vTop: 47, grip: 0.97, brake: 0.97, agility: 0.95,
     ride: 0.21, hoodY: 1.17,
-    cab: { ws: 1.05, rf: 0.10, rb: -1.55, rg: -1.98 },
+    // Roof panel runs almost to the tailgate - there is a third row under the back of it.
+    cab: { ws: 1.00, rf: 0.10, rb: -1.95, rg: -2.33 },
+    // The upright one. It shares a class, a size and very nearly a set of style flags
+    // with the Monjaro, and the two were being told apart only by their grilles - which
+    // is no help at all when the car ahead is showing you its back. So the pair is built
+    // to opposite characters: this one keeps a tall roof dead level over all three rows
+    // and drops it steeply onto a near-upright tailgate, carries a low flat window line
+    // for a big square glass house, and has little tumblehome, so its sides stand up.
+    // Black roof and rails on top of that. The Monjaro is the low one with the falling
+    // roofline, the rising window line and the body-colour roof.
     hull: [
-      [2.28, 0.99, 0.93, 0.76, 0.99],
-      [2.08, 1.03, 0.97, 0.89, 0.98],
-      [1.69, 1.13, 1.07, 1.00, 0.97],
-      [1.29, 1.17, 1.11, 1.00, 0.95],
-      [0.90, 1.30, 1.14, 1.00, 0.90],
-      [0.51, 1.55, 1.15, 1.00, 0.78],
-      [0.11, 1.67, 1.16, 0.98, 0.73],
-      [-0.67, 1.70, 1.20, 0.98, 0.70],
-      [-1.07, 1.69, 1.24, 1.00, 0.68],
-      [-1.46, 1.71, 1.25, 1.00, 0.70],
-      [-1.85, 1.71, 1.45, 0.99, 0.80],
-      [-2.25, 1.59, 1.53, 0.89, 0.92],
-      [-2.44, 1.42, 1.36, 0.76, 0.97],
+      [2.28, 0.990, 0.930, 0.76, 0.99],
+      [2.08, 1.045, 0.975, 0.89, 0.98],
+      [1.69, 1.160, 1.080, 1.00, 0.97],
+      [1.29, 1.210, 1.115, 1.00, 0.95],
+      [0.90, 1.380, 1.140, 1.00, 0.92],    // short bonnet: the screen gets up early
+      [0.51, 1.640, 1.155, 1.00, 0.86],
+      [0.11, 1.730, 1.165, 0.99, 0.82],    // tall flat roof begins
+      [-0.67, 1.742, 1.195, 0.99, 0.82],
+      [-1.07, 1.745, 1.215, 1.00, 0.82],
+      [-1.46, 1.742, 1.230, 1.00, 0.82],
+      [-1.95, 1.720, 1.250, 0.99, 0.83],   // still high over the third row
+      [-2.23, 1.610, 1.290, 0.94, 0.88],   // short, steep rear screen
+      [-2.44, 1.330, 1.190, 0.76, 0.96],   // near-upright tailgate
     ],
-    style: { cladding: true, front: 'waterfall', chrome: true, rails: true },
+    style: { cladding: true, twoTone: true, front: 'waterfall', chrome: true, rails: true },
     model: 'assets/cars/chery_tiggo8.glb',
     paint: 7,
   },
