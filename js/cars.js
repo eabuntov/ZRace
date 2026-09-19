@@ -18,15 +18,17 @@
 // Performance figures are game-tuned for racing, not manufacturer data.
 import * as THREE from 'three';
 
+// `id` is the translation key (paint.<id> in js/lang/); `name` is the English source
+// text, kept here so the table still reads as a list of colours.
 export const PAINTS = [
-  { name: 'Mist Grey', hex: '#9aa2a8', matte: true },
-  { name: 'Glacier White', hex: '#eef1f4' },
-  { name: 'Obsidian', hex: '#212428' },
-  { name: 'Electric Blue', hex: '#2f6ad0' },
-  { name: 'Aurora Green', hex: '#2fae74' },
-  { name: 'Solar Orange', hex: '#ef7420' },
-  { name: 'Crimson', hex: '#c1232d' },
-  { name: 'Dune', hex: '#c9b795' },
+  { id: 'mist', name: 'Mist Grey', hex: '#9aa2a8', matte: true },
+  { id: 'glacier', name: 'Glacier White', hex: '#eef1f4' },
+  { id: 'obsidian', name: 'Obsidian', hex: '#212428' },
+  { id: 'electric', name: 'Electric Blue', hex: '#2f6ad0' },
+  { id: 'aurora', name: 'Aurora Green', hex: '#2fae74' },
+  { id: 'solar', name: 'Solar Orange', hex: '#ef7420' },
+  { id: 'crimson', name: 'Crimson', hex: '#c1232d' },
+  { id: 'dune', name: 'Dune', hex: '#c9b795' },
 ];
 
 export const CARS = [

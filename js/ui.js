@@ -1,17 +1,21 @@
 // Menus, HUD widgets (speed dial, minimap, timing tower) and the results screen.
+//
+// Everything built here is built from the catalogue, so rebuilding a screen after a
+// language change is the same call that built it in the first place.
+import { t, tn, num, date, detect, LANGUAGES } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 
 // Driver names are typed by whoever is at the keyboard, so they are escaped, not trusted.
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => (
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function formatTime(ms) {
   if (ms == null || !isFinite(ms)) return '--:--.---';
   const m = Math.floor(ms / 60000);
   const s = Math.floor((ms % 60000) / 1000);
-  const t = Math.floor(ms % 1000);
-  return `${m}:${String(s).padStart(2, '0')}.${String(t).padStart(3, '0')}`;
+  const ms3 = Math.floor(ms % 1000);
+  return `${m}:${String(s).padStart(2, '0')}.${String(ms3).padStart(3, '0')}`;
 }
 
 const FLAGS = {
@@ -82,7 +86,7 @@ export class UI {
     cars.forEach((c, i) => {
       const b = document.createElement('button');
       b.className = 'car-chip' + (i === state.carIndex ? ' sel' : '');
-      b.innerHTML = `${c.name}<small>${c.type}</small>`;
+      b.innerHTML = `${esc(c.name)}<small>${esc(t(`car.${c.id}.type`))}</small>`;
       b.addEventListener('click', () => this.hooks.onCar(i));
       list.appendChild(b);
     });
@@ -92,7 +96,7 @@ export class UI {
       const b = document.createElement('button');
       b.className = 'paint' + (i === state.paintIndex ? ' sel' : '');
       b.style.background = p.hex;
-      b.title = p.name;
+      b.title = t(`paint.${p.id}`);
       b.addEventListener('click', () => this.hooks.onPaint(i));
       pl.appendChild(b);
     });
@@ -101,14 +105,14 @@ export class UI {
 
   updateCarInfo(spec) {
     $('carName').textContent = spec.name;
-    $('carType').textContent = spec.type;
-    $('carTagline').textContent = spec.tagline;
+    $('carType').textContent = t(`car.${spec.id}.type`);
+    $('carTagline').textContent = t(`car.${spec.id}.tagline`);
     const rows = [
-      ['POWER', `${Math.round(spec.power / 1000)} kW`, spec.power / 950000],
-      ['0–100 KM/H', `${spec.accel.toFixed(1)} s`, 1 - (spec.accel - 2) / 3.2],
-      ['TOP SPEED', `${Math.round(spec.vTop * 3.6)} km/h`, (spec.vTop - 45) / 40],
-      ['GRIP', `${spec.grip.toFixed(2)} g`, (spec.grip - 0.85) / 0.45],
-      ['WEIGHT', `${spec.mass} kg`, 1 - (spec.mass - 1800) / 1200],
+      [t('stats.power'), `${num(spec.power / 1000)} ${t('unit.kw')}`, spec.power / 950000],
+      [t('stats.accel'), `${num(spec.accel, 1)} ${t('unit.s')}`, 1 - (spec.accel - 2) / 3.2],
+      [t('stats.top'), `${num(spec.vTop * 3.6)} ${t('unit.kmh')}`, (spec.vTop - 45) / 40],
+      [t('stats.grip'), `${num(spec.grip, 2)} ${t('unit.g')}`, (spec.grip - 0.85) / 0.45],
+      [t('stats.weight'), `${num(spec.mass)} ${t('unit.kg')}`, 1 - (spec.mass - 1800) / 1200],
     ];
     $('carStats').innerHTML = rows.map(([k, v, f]) => `
       <div class="stat"><div class="row"><span>${k}</span><b>${v}</b></div>
@@ -127,7 +131,7 @@ export class UI {
   buildTracks(tracks, state) {
     const grid = $('trackGrid');
     grid.innerHTML = '';
-    tracks.forEach((t, i) => {
+    tracks.forEach((track, i) => {
       const card = document.createElement('button');
       card.className = 'track-card' + (i === state.trackIndex ? ' sel' : '');
       const cv = document.createElement('canvas');
@@ -135,17 +139,22 @@ export class UI {
       card.appendChild(cv);
       const name = document.createElement('div');
       name.className = 'name';
-      name.innerHTML = `${FLAGS[t.def.flag] || ''}<span>${t.def.city}</span>`;
+      name.innerHTML = `${FLAGS[track.def.flag] || ''}<span>${esc(t(`track.${track.def.id}.city`))}</span>`;
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = `${t.def.country} · ${(t.path.length / 1000).toFixed(2)} km · ${t.path.cornerCount()} corners`;
+      const corners = track.path.cornerCount();
+      meta.textContent = t('track.meta', {
+        country: t(`track.${track.def.id}.country`),
+        km: num(track.path.length / 1000, 2),
+        corners: tn('track.corners', corners),
+      });
       const blurb = document.createElement('div');
       blurb.className = 'blurb';
-      blurb.textContent = t.def.blurb;
+      blurb.textContent = t(`track.${track.def.id}.blurb`);
       card.append(name, meta, blurb);
       card.addEventListener('click', () => this.hooks.onTrack(i));
       grid.appendChild(card);
-      this.drawTrackPreview(cv.getContext('2d'), t.path, '#37e0a6');
+      this.drawTrackPreview(cv.getContext('2d'), track.path, '#37e0a6');
     });
   }
 
@@ -196,9 +205,27 @@ export class UI {
         el.appendChild(b);
       });
     };
-    seg($('optLaps'), [1, 2, 3, 5], state.laps, 'laps');
-    seg($('optCars'), [0, 1, 3, 5], state.opponents, 'opponents');
-    seg($('optDiff'), ['easy', 'normal', 'hard'], state.difficulty, 'difficulty', (v) => v.toUpperCase());
+    seg($('optLaps'), [1, 2, 3, 5], state.laps, 'laps', (v) => num(v));
+    seg($('optCars'), [0, 1, 3, 5], state.opponents, 'opponents', (v) => num(v));
+    seg($('optDiff'), ['easy', 'normal', 'hard'], state.difficulty, 'difficulty', (v) => t(`diff.${v}`));
+  }
+
+  // ---------------------------------------------------------------- options
+  // AUTO first, then every catalogue by its own name - a language nobody can read is a
+  // poor thing to label in a language they cannot read either.
+  buildLanguages(chosen) {
+    const el = $('optLang');
+    if (!el) return;
+    el.innerHTML = '';
+    const opts = [{ code: 'auto', name: `${t('options.auto')} · ${detect().toUpperCase()}` },
+      ...LANGUAGES];
+    for (const { code, name } of opts) {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.className = code === chosen ? 'sel' : '';
+      b.addEventListener('click', () => this.hooks.onLanguage(code));
+      el.appendChild(b);
+    }
   }
 
   // ------------------------------------------------------------------ HUD
@@ -313,7 +340,7 @@ export class UI {
     if (d.lap !== this.lastHud.lap) $('lap').textContent = d.lap;
     if (d.laps !== this.lastHud.laps) $('lapTotal').textContent = d.laps;
     $('kmh').textContent = Math.round(d.kmh);
-    $('powerRead').textContent = `${d.power >= 0 ? '' : '−'}${Math.abs(Math.round(d.power))} kW`;
+    $('powerRead').textContent = `${d.power >= 0 ? '' : '−'}${num(Math.abs(d.power))} ${t('unit.kw')}`;
     $('tCur').textContent = formatTime(d.current);
     $('tLast').textContent = formatTime(d.last);
     $('tBest').textContent = formatTime(d.best);
@@ -360,9 +387,9 @@ export class UI {
   buildRecords({ tracks, sel, rows, you, scope, online }) {
     const scopes = $('recordScope');
     scopes.innerHTML = '';
-    for (const [key, label] of [['global', 'GLOBAL'], ['local', 'THIS BROWSER']]) {
+    for (const key of ['global', 'local']) {
       const b = document.createElement('button');
-      b.textContent = label;
+      b.textContent = t(`records.${key}`);
       b.className = key === scope ? 'sel' : '';
       // GLOBAL stays clickable even when the last attempt failed: a board that was
       // down a minute ago may not be now, and greying it out for the rest of the
@@ -374,9 +401,9 @@ export class UI {
 
     const tabs = $('recordTracks');
     tabs.innerHTML = '';
-    tracks.forEach((t, i) => {
+    tracks.forEach((track, i) => {
       const b = document.createElement('button');
-      b.textContent = t.def.city.toUpperCase();
+      b.textContent = t(`track.${track.def.id}.city`).toUpperCase();
       b.className = i === sel ? 'sel' : '';
       b.addEventListener('click', () => this.hooks.onRecordTrack(i));
       tabs.appendChild(b);
@@ -385,31 +412,24 @@ export class UI {
     const body = $('recordRows');
     const note = (text) => `<tr><td class="empty" colspan="5">${text}</td></tr>`;
     if (rows == null) {
-      body.innerHTML = note(online === false
-        ? 'No shared board on this server — the times below are the ones on this machine.'
-        : 'Fetching the shared board…');
+      body.innerHTML = note(t(online === false ? 'records.noServer' : 'records.fetching'));
     } else if (!rows.length) {
-      body.innerHTML = note('No laps here yet. Set one and you are the record.');
+      body.innerHTML = note(t('records.empty'));
     } else {
-      const day = (ms) => new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
       body.innerHTML = rows.map((r, i) => `
         <tr class="${r.name === you ? 'you' : ''}${i === 0 ? ' gold' : ''}">
           <td class="p">${i + 1}</td>
           <td>${esc(r.name)}</td>
           <td class="car">${esc(r.car)}</td>
           <td class="t">${formatTime(r.ms)}</td>
-          <td class="when">${r.at ? day(r.at) : ''}</td>
+          <td class="when">${r.at ? date(r.at) : ''}</td>
         </tr>`).join('');
     }
-    $('recordNote').textContent = scope === 'global'
-      ? 'Best lap per driver per car, from everyone racing this server. Laps quicker than the '
-        + 'car can physically go are refused, but a name is only a name — take it in that spirit.'
-      : 'Best lap per driver per car, kept in this browser. Change the name on the title screen '
-        + 'to share a board with whoever else races on this machine.';
+    $('recordNote').textContent = t(scope === 'global' ? 'records.noteGlobal' : 'records.noteLocal');
   }
 
-  loading(text) {
-    $('loadingText').textContent = text;
+  loading(key) {
+    $('loadingText').textContent = t(key);
     this.show('loading');
   }
 }

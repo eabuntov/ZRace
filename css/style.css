@@ -135,6 +135,12 @@ button.back { background: none; border: none; color: var(--muted); padding-left:
 .seg button { padding: 8px 15px; font-size: 12.5px; border-radius: 8px; letter-spacing: 0.04em; }
 .seg button.sel { background: var(--accent); border-color: var(--accent); color: #04120c; }
 .seg button.dim { opacity: 0.45; }
+.seg.wrap-seg { flex-wrap: wrap; }
+
+/* options */
+.options-list { flex: 1; align-content: start; padding: 30px clamp(18px, 4vw, 48px); max-width: 640px; }
+.opt-row label { display: block; font-size: 10.5px; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 9px; }
+.options-list .disclaimer { margin-top: 20px; }
 
 /* controls */
 .controls-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px 30px; align-content: start; padding: 30px clamp(18px, 4vw, 48px); }

@@ -129,6 +129,32 @@ python tools/serve.py 8010
 python server/scores.py --port 8011 --db zrace.db
 ```
 
+## Languages
+
+The game ships in English, Chinese, Japanese, Russian, German, French, Spanish and
+Italian. On first run it takes the first of those that the browser asks for — `zh-CN`
+finds Chinese, `de-AT` finds German — and falls back to English if it recognises none of
+them. **Options** on the title screen overrides that, and the choice is remembered in
+this browser; **AUTO** hands it back to the browser and shows which language that is.
+
+Menus, HUD, messages, results and the record board are all translated, as are car types,
+taglines, paint names, circuit blurbs and the countries. Model and circuit names are not:
+`XIAOMI SU7 ULTRA` and `Mount Panorama` read the same everywhere. Numbers and dates
+follow the language too, so a circuit is 4.40 km in English and 4,40 км in Russian.
+
+### Adding a language
+
+1. Copy `js/lang/en.js` to `js/lang/<code>.js` and translate the values. English is the
+   fallback for anything you leave out, so a partial catalogue is safe to commit.
+2. Add `{ code, name }` to `LANGUAGES` in `js/i18n.js`. That list is also the allow-list
+   — a code that is not on it is never imported.
+3. Keep the `{name}` placeholders. Plural keys (`track.corners.*`) end in a CLDR
+   category; supply the ones your language uses and `.other` for the rest.
+
+Static markup is translated through `data-i18n` attributes on the element; anything built
+at run time calls `t()`. Both are re-run on a language change, so switching never needs a
+reload.
+
 ## The cars
 
 | Model | Body | Character |
@@ -256,6 +282,8 @@ js/input.js         keyboard, gamepad and touch
 js/audio.js         synthesised EV whine, tyre scrub, impacts (Web Audio, no samples)
 js/ui.js            menus, speed dial, minimap, timing tower, results, record board
 js/records.js       nicknames, the local record table, and the global board client
+js/i18n.js          language detection, catalogue loading and t()
+js/lang/*.js        one translation catalogue per language (en is the source and fallback)
 server/scores.py    optional global record board: SQLite behind /api/ (no dependencies)
 server/floors.json  fastest physically possible lap per car per circuit, for validation
 js/textures.js      every texture, painted into a canvas at run time

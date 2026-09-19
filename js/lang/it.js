@@ -1,0 +1,179 @@
+// Italiano — Italian. Keys and placeholders match lang/en.js.
+
+export default {
+  'app.title': 'ZRace — gare in circuito con auto cinesi',
+
+  'title.tagline': 'Dieci macchine cinesi. Cinque circuiti.',
+  'title.driver': 'PILOTA',
+  'title.namePlaceholder': 'Il tuo nome',
+  'title.nameAria': 'Nome del pilota',
+  'title.start': 'INIZIA UNA GARA',
+  'title.timeTrial': 'PROVA A CRONOMETRO',
+  'title.records': 'RECORD',
+  'title.controls': 'COMANDI',
+  'title.options': 'OPZIONI',
+  'title.disclaimer': 'Gioco amatoriale non ufficiale. Non affiliato a BYD, Chery, Geely, '
+    + 'Great Wall, Xiaomi o ZEEKR, né approvato da loro. Tracciati e dati di prestazione '
+    + 'sono semplificati per la guida.',
+
+  'nav.back': '‹ Indietro',
+
+  'car.heading': 'Scegli la tua auto',
+  'car.next': 'AVANTI: CIRCUITO ›',
+  'stats.power': 'POTENZA',
+  'stats.accel': '0–100 KM/H',
+  'stats.top': 'VELOCITÀ MAX',
+  'stats.grip': 'GRIP',
+  'stats.weight': 'PESO',
+
+  'track.heading': 'Scegli un circuito',
+  'track.start': 'INIZIA LA GARA ›',
+  'track.meta': '{country} · {km} km · {corners}',
+  'track.corners.one': '{n} curva',
+  'track.corners.other': '{n} curve',
+  'opt.laps': 'GIRI',
+  'opt.opponents': 'AVVERSARI',
+  'opt.difficulty': 'DIFFICOLTÀ',
+  'diff.easy': 'FACILE',
+  'diff.normal': 'NORMALE',
+  'diff.hard': 'DIFFICILE',
+
+  'controls.heading': 'Comandi',
+  'controls.accel': 'Accelerare',
+  'controls.brake': 'Frenare / retromarcia',
+  'controls.steer': 'Sterzare',
+  'controls.boost': 'Boost — qualche secondo di sovralimentazione, poi si ricarica',
+  'controls.handbrake': 'Freno a mano — controllo di stabilità escluso, porta fuori il posteriore',
+  'controls.camera': 'Telecamera: inseguimento / ravvicinata / cofano',
+  'controls.rejoin': 'Rientrare in pista',
+  'controls.pause': 'Pausa',
+  'controls.mute': 'Muto',
+  'controls.gamepad': 'Funziona anche il gamepad: grilletto destro per accelerare, sinistro '
+    + 'per frenare, levetta sinistra per sterzare, B o un dorsale per il boost. Su schermo '
+    + 'tattile i pedali compaiono da soli.',
+
+  'options.heading': 'Opzioni',
+  'options.language': 'LINGUA',
+  'options.auto': 'AUTO',
+  'options.languageNote': 'AUTO segue la lingua richiesta dal browser. Ogni altra scelta resta '
+    + 'memorizzata su questa macchina. I nomi di auto e circuiti restano uguali in ogni lingua.',
+
+  'records.heading': 'Record',
+  'records.global': 'GLOBALE',
+  'records.local': 'QUESTO BROWSER',
+  'records.fetching': 'Recupero della classifica condivisa…',
+  'records.noServer': 'Su questo server non c’è una classifica condivisa — sotto ci sono i tempi di questa macchina.',
+  'records.empty': 'Qui non c’è ancora nessun giro. Fanne uno e il record è tuo.',
+  'records.noteGlobal': 'Giro migliore per pilota e per auto, da tutti quelli che corrono su '
+    + 'questo server. I giri più veloci di quanto l’auto possa fisicamente fare vengono '
+    + 'rifiutati, ma un nome resta solo un nome — prendilo per quello che è.',
+  'records.noteLocal': 'Giro migliore per pilota e per auto, conservato in questo browser. '
+    + 'Cambia il nome nella schermata iniziale per condividere una classifica con chi altro '
+    + 'corre su questa macchina.',
+
+  'hud.lap': 'GIRO',
+  'hud.current': 'ATTUALE',
+  'hud.last': 'ULTIMO',
+  'hud.best': 'MIGLIORE',
+  'hud.boost': 'BOOST',
+  'hud.leader': 'LEADER',
+  'touch.brake': 'FRENO',
+  'touch.go': 'GAS',
+  'touch.steerLeft': 'sterza a sinistra',
+  'touch.steerRight': 'sterza a destra',
+  'touch.brakeAria': 'frenare',
+  'touch.boostAria': 'boost',
+  'touch.accelAria': 'accelerare',
+
+  'msg.go': 'VIA',
+  'msg.muted': 'MUTO',
+  'msg.soundOn': 'AUDIO ATTIVO',
+  'msg.wrongWay': 'CONTROMANO',
+  'msg.worldRecord': 'RECORD MONDIALE',
+  'msg.circuitRecord': 'RECORD DEL CIRCUITO',
+  'msg.newBest': 'MIGLIOR GIRO',
+  'msg.boardPos': '{n}º IN CLASSIFICA',
+  'msg.finalLap': 'ULTIMO GIRO',
+  'msg.winner': 'VINCITORE',
+  'msg.finishedP': 'ARRIVO — {n}º',
+
+  'results.heading': 'Risultato della gara',
+  'results.won': 'Hai vinto',
+  'results.finishedP': 'Arrivo — {n}º',
+  'results.timeTrial': 'Prova a cronometro — miglior giro {time}',
+  'results.again': 'CORRI ANCORA',
+  'results.change': 'CAMBIA CIRCUITO',
+  'results.menu': 'MENU PRINCIPALE',
+
+  'pause.heading': 'In pausa',
+  'pause.resume': 'RIPRENDI',
+  'pause.restart': 'RICOMINCIA LA GARA',
+  'pause.quit': 'TORNA AL MENU',
+
+  'loading.circuit': 'Costruzione del circuito…',
+
+  'fatal.title': 'Avvio non riuscito',
+  'fatal.webgl': 'Se il messaggio parla di WebGL, prova un altro browser o attiva l’accelerazione hardware.',
+
+  'unit.kw': 'kW',
+  'unit.kmh': 'km/h',
+  'unit.s': 's',
+  'unit.g': 'g',
+  'unit.kg': 'kg',
+
+  'paint.mist': 'Grigio nebbia',
+  'paint.glacier': 'Bianco ghiacciaio',
+  'paint.obsidian': 'Ossidiana',
+  'paint.electric': 'Blu elettrico',
+  'paint.aurora': 'Verde aurora',
+  'paint.solar': 'Arancio solare',
+  'paint.crimson': 'Cremisi',
+  'paint.dune': 'Duna',
+
+  'car.x.type': 'Crossover compatto',
+  'car.x.tagline': 'Corto, leggero e impaziente di cambiare direzione.',
+  'car.7x.type': 'SUV di media taglia',
+  'car.7x.tagline': 'Più pesante, ma il peso lo nasconde bene.',
+  'car.seal.type': 'Berlina elettrica',
+  'car.seal.tagline': 'Batteria Blade in basso nel pianale, e in curva si sente.',
+  'car.u9.type': 'Hypercar elettrica',
+  'car.u9.tagline': 'Quattro motori, poco più di un metro d’altezza, e più veloce di tutto il resto.',
+  'car.gc9.type': 'Berlina grande',
+  'car.gc9.tagline': 'Cofano lungo, baule lungo e una calandra che si vede arrivare.',
+  'car.monjaro.type': 'SUV grande',
+  'car.monjaro.tagline': 'Pesante e alto, ma tiene più a lungo di quanto sembri.',
+  'car.tiggo8.type': 'SUV a tre file',
+  'car.tiggo8.tagline': 'Sette posti e una spina: il più pesante qui, eppure ha fretta.',
+  'car.bigdog.type': 'SUV compatto squadrato',
+  'car.bigdog.tagline': 'Squadrato come un mattone, fari tondi e nessun interesse per l’aerodinamica.',
+  'car.su7.type': 'Berlina sportiva elettrica',
+  'car.su7.tagline': 'Tre motori e millecento kilowatt. Qui non gli sta dietro nessuno.',
+  'car.yu7.type': 'Crossover elettrico',
+  'car.yu7.tagline': 'La SU7 cresciuta in altezza: stesso passo, molto più spazio sopra la testa.',
+
+  'track.shanghai.name': 'Circuito Internazionale di Shanghai',
+  'track.shanghai.city': 'Shanghai',
+  'track.shanghai.country': 'Cina',
+  'track.shanghai.blurb': 'Terra di casa ZEEKR: una chiocciola che si stringe verso la curva 1, '
+    + 'un rettilineo posteriore lungo più di un chilometro e un tornante fatto per frenare tardi.',
+  'track.monaco.name': 'Circuito di Monaco',
+  'track.monaco.city': 'Monte Carlo',
+  'track.monaco.country': 'Monaco',
+  'track.monaco.blurb': 'Guardrail a un palmo, la salita verso piazza del Casinò, il tornante '
+    + 'più lento dell’automobilismo e un tunnel lungo il mare.',
+  'track.suzuka.name': 'Circuito di Suzuka',
+  'track.suzuka.city': 'Suzuka',
+  'track.suzuka.country': 'Giappone',
+  'track.suzuka.blurb': 'L’otto: le esse in sequenza, la Degner, il tornante, la Spoon e la '
+    + '130R in pieno prima di riattraversare il ponte.',
+  'track.monza.name': 'Autodromo Nazionale Monza',
+  'track.monza.city': 'Monza',
+  'track.monza.country': 'Italia',
+  'track.monza.blurb': 'Il tempio della velocità: rettilinei lunghi dentro il parco reale, le '
+    + 'Lesmo, l’Ascari e la Parabolica che non finisce mai.',
+  'track.bathurst.name': 'Mount Panorama',
+  'track.bathurst.city': 'Bathurst',
+  'track.bathurst.country': 'Australia',
+  'track.bathurst.blurb': 'Una strada aperta che sale su una montagna: 175 metri di dislivello, '
+    + 'i muri al Cutting, il tuffo del Dipper e il Conrod Straight in pieno.',
+};

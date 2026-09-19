@@ -12,6 +12,7 @@ import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { UI, formatTime } from './ui.js';
 import * as Records from './records.js';
+import { t, num, setLanguage } from './i18n.js';
 import { setMaxAnisotropy, shadowTexture } from './textures.js';
 
 const DIFF = {
@@ -53,7 +54,7 @@ class Game {
 
     this.settings = Object.assign(
       { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
-        name: Records.DEFAULT_NAME },
+        name: Records.DEFAULT_NAME, lang: 'auto' },
       this.load()
     );
     this.best = this.settings.best || {};
@@ -77,7 +78,7 @@ class Game {
     this.tracks = TRACKS.map((def) => ({ def, path: new TrackPath(def) }));
 
     this.ui = new UI({
-      onNav: (t) => this.nav(t),
+      onNav: (target) => this.nav(target),
       onCar: (i) => this.pickCar(i),
       onPaint: (i) => this.pickPaint(i),
       onTrack: (i) => this.pickTrack(i),
@@ -90,6 +91,7 @@ class Game {
         if (v === 'global' && !Records.isOnline()) Records.probe().then(() => this.showRecords());
         else this.showRecords();
       },
+      onLanguage: (code) => this.pickLanguage(code),
       onStart: () => this.startRace(),
       onResume: () => this.resume(),
       onRestart: () => this.startRace(),
@@ -99,6 +101,7 @@ class Game {
     this.ui.buildCars(CARS, PAINTS, this.settings);
     this.ui.buildTracks(this.tracks, this.settings);
     this.ui.buildOptions(this.settings);
+    this.ui.buildLanguages(this.settings.lang);
     this.ui.setName(this.settings.name);
     this.ui.show('title');
 
@@ -244,6 +247,8 @@ class Game {
       this.ui.show('track');
     } else if (target === 'controls') {
       this.ui.show('controls');
+    } else if (target === 'options') {
+      this.ui.show('options');
     } else if (target === 'records') {
       this.recordTrack = this.settings.trackIndex;
       this.showRecords();
@@ -281,6 +286,21 @@ class Game {
       this.recordScope = 'local';
       this.showRecords();
     });
+  }
+
+  // Loads the catalogue, then rebuilds everything the menus drew from the old one.
+  // Static markup is rewritten by setLanguage itself; these are the screens this class
+  // builds by hand, plus the car panel, whose text is a car away from its own screen.
+  async pickLanguage(code) {
+    this.settings.lang = code;
+    this.audio.click();
+    await setLanguage(code === 'auto' ? null : code);
+    this.ui.buildCars(CARS, PAINTS, this.settings);
+    this.ui.buildTracks(this.tracks, this.settings);
+    this.ui.buildOptions(this.settings);
+    this.ui.buildLanguages(this.settings.lang);
+    if (this.ui.current === 'records') this.showRecords();
+    this.save();
   }
 
   setName(v) {
@@ -328,7 +348,7 @@ class Game {
   bindKeys() {
     this.input.on('KeyC', () => { if (this.state === 'racing' || this.state === 'finished') this.camMode = (this.camMode + 1) % CAM_MODES.length; });
     this.input.on('KeyR', () => { if (this.state === 'racing' && this.player) this.player.respawn(); });
-    this.input.on('KeyM', () => { this.audio.setMuted(!this.audio.muted); this.ui.message(this.audio.muted ? 'MUTED' : 'SOUND ON', '', 900); });
+    this.input.on('KeyM', () => { this.audio.setMuted(!this.audio.muted); this.ui.message(t(this.audio.muted ? 'msg.muted' : 'msg.soundOn'), '', 900); });
     const pause = () => {
       if (this.state === 'racing' || this.state === 'countdown') this.pause();
       else if (this.state === 'paused') this.resume();
@@ -341,7 +361,7 @@ class Game {
   startRace() {
     this.audio.click();
     this.endRace(true);
-    this.ui.loading('Building circuit…');
+    this.ui.loading('loading.circuit');
     this.ui.hudVisible(false);
     // let the loading screen paint before the (synchronous) build
     setTimeout(() => this.buildRace(), 60);
@@ -427,7 +447,7 @@ class Game {
     const f = path.sampleAt(path.wrapS(-9 - (n - 1) * 8.5));
     this.camPos.set(f.x - f.tx * 9, f.y + 3.4, f.z - f.tz * 9);
     this.camLook.set(f.x, f.y + 1, f.z);
-    console.log(`[zrace] ${def.name} built in ${Math.round(performance.now() - t0)} ms`);
+    console.log(`[zrace] ${t(`track.${def.id}.name`)} built in ${Math.round(performance.now() - t0)} ms`);
   }
 
   // The player's car is the one on screen for the whole race, so it gets the scan; the
@@ -515,7 +535,7 @@ class Game {
           this.raceTime = 0;
           this.world.setStartLights(0);
           this.ui.lights(0, false);
-          this.ui.message('GO', 'good', 900);
+          this.ui.message(t('msg.go'), 'good', 900);
           this.audio.beep(880, 0.35, 0.2);
           for (const c of cars) c.race.lapStart = 0;
         }
@@ -581,7 +601,7 @@ class Game {
       const fwdDot = Math.sin(p.h) * p.proj.tx + Math.cos(p.h) * p.proj.tz;
       if (fwdDot < -0.25 && p.speed > 4) {
         this.wrongWay += dt;
-        if (this.wrongWay > 0.5) this.ui.message('WRONG WAY', 'red', 400);
+        if (this.wrongWay > 0.5) this.ui.message(t('msg.wrongWay'), 'red', 400);
       } else this.wrongWay = 0;
       if (p.impact > 4) this.audio.hit(p.impact);
     }
@@ -613,23 +633,24 @@ class Game {
     // worth saying so about; everything else is silent, including no service at all.
     Records.submitGlobal(id, entry).then((worldRank) => {
       if (worldRank === 1) {
-        this.ui.message('WORLD RECORD<small>' + formatTime(entry.ms) + '</small>', 'good', 2800);
+        this.ui.message(t('msg.worldRecord') + `<small>${formatTime(entry.ms)}</small>`, 'good', 2800);
       }
     });
     const prev = this.best[id];
     if (rank === 1) {
       this.best[id] = Math.min(lap, prev == null ? lap : prev);
       this.save();
-      this.ui.message('CIRCUIT RECORD<small>' + formatTime(lap * 1000) + '</small>', 'good', 2400);
+      this.ui.message(t('msg.circuitRecord') + `<small>${formatTime(lap * 1000)}</small>`, 'good', 2400);
     } else if (prev == null || lap < prev) {
       this.best[id] = lap;
       this.save();
-      this.ui.message('NEW BEST LAP<small>' + formatTime(lap * 1000) + '</small>', 'good', 2200);
+      this.ui.message(t('msg.newBest') + `<small>${formatTime(lap * 1000)}</small>`, 'good', 2200);
     } else {
-      this.ui.message(formatTime(lap * 1000) + (rank ? `<small>P${rank} ON THE BOARD</small>` : ''), '', 1600);
+      this.ui.message(formatTime(lap * 1000)
+        + (rank ? `<small>${t('msg.boardPos', { n: num(rank) })}</small>` : ''), '', 1600);
     }
     const left = this.settings.laps - n;
-    if (left === 1) setTimeout(() => this.ui.message('FINAL LAP', 'warn', 1800), 2300);
+    if (left === 1) setTimeout(() => this.ui.message(t('msg.finalLap'), 'warn', 1800), 2300);
   }
 
   onPlayerFinish() {
@@ -638,7 +659,8 @@ class Game {
     this.input.enabled = false;
     document.body.classList.remove('racing');
     const pos = this.player.pos || 1;
-    this.ui.message(pos === 1 ? 'WINNER' : `FINISHED P${pos}`, pos === 1 ? 'good' : '', 2600);
+    this.ui.message(pos === 1 ? t('msg.winner') : t('msg.finishedP', { n: num(pos) }),
+      pos === 1 ? 'good' : '', 2600);
   }
 
   showResults() {
@@ -656,8 +678,8 @@ class Game {
       });
     const p = this.player;
     const title = this.settings.opponents === 0
-      ? `Time trial — best lap ${formatTime((p.race.best || 0) * 1000)}`
-      : p.pos === 1 ? 'You won' : `Finished P${p.pos}`;
+      ? t('results.timeTrial', { time: formatTime((p.race.best || 0) * 1000) })
+      : p.pos === 1 ? t('results.won') : t('results.finishedP', { n: num(p.pos) });
     this.ui.results(title, rows);
     this.audio.stop();
   }
@@ -728,7 +750,7 @@ class Game {
         pos: c.pos,
         code: c.code,
         you: c.isPlayer,
-        gap: c === leader ? 'LEADER' : '+' + ((leader.dist - c.dist) / Math.max(25, c.speed)).toFixed(1),
+        gap: c === leader ? t('hud.leader') : '+' + ((leader.dist - c.dist) / Math.max(25, c.speed)).toFixed(1),
       })));
     }
   }
@@ -800,12 +822,24 @@ class Game {
   }
 }
 
+// The catalogue has to be in hand before the first screen is drawn, so the language is
+// read straight out of storage here rather than waiting for the Game to parse settings:
+// a menu that renders in English and then flips a frame later looks like a bug. 'auto',
+// and anything unreadable, both come out as null, which is setLanguage's "ask the browser".
+const savedLanguage = () => {
+  try {
+    const lang = (JSON.parse(localStorage.getItem(STORE)) || {}).lang;
+    return lang && lang !== 'auto' ? lang : null;
+  } catch { return null; }
+};
+
 try {
+  await setLanguage(savedLanguage());
   window.__game = new Game();
 } catch (err) {
   console.error(err);
   const f = document.getElementById('fatal');
   f.className = '';
-  f.innerHTML = `<h2>Could not start</h2><p>${err && err.message ? err.message : err}</p>
-    <p class="muted">If this mentions WebGL, try a different browser or enable hardware acceleration.</p>`;
+  f.innerHTML = `<h2>${t('fatal.title')}</h2><p>${err && err.message ? err.message : err}</p>
+    <p class="muted">${t('fatal.webgl')}</p>`;
 }
