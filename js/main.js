@@ -161,10 +161,12 @@ class Game {
   // The showroom gets a studio of its own rather than the sky a circuit uses. A sky is
   // one bright dome overhead: it lights a roof and a bonnet and leaves the flanks, the
   // sills and the wheels to fall away into the background, which is why the car on the
-  // turntable looked like it was parked in an unlit garage. This is a light box - dark
-  // walls, three bright strips across the ceiling, and a floor bright enough to bounce.
-  // Paint is mostly a mirror, so this map does more for how the car reads than any of
-  // the lamps below it: the strips are what draw the long highlights down its length.
+  // turntable looked like it was parked in an unlit garage. This is a light box: walls,
+  // three bright strips across the ceiling, and a floor bright enough to bounce. Paint
+  // is mostly a mirror, so this map does more for how the car reads than any of the
+  // lamps below it - the strips are what draw the long highlights down its length - and
+  // it is the backdrop as well, so the room is one room whether you look at it or at
+  // its reflection.
   studioEnv() {
     const c = document.createElement('canvas');
     c.width = 1024; c.height = 512;
@@ -202,9 +204,45 @@ class Game {
     const tex = new THREE.CanvasTexture(c);
     tex.mapping = THREE.EquirectangularReflectionMapping;
     tex.colorSpace = THREE.SRGBColorSpace;
-    const env = this.pmrem.fromEquirectangular(tex).texture;
-    tex.dispose();
-    return env;
+    // Kept, not disposed: the same map is the backdrop, so the room reflected in the
+    // paint and the room behind the car are one and the same.
+    return { env: this.pmrem.fromEquirectangular(tex).texture, backdrop: tex };
+  }
+
+  // Projectors on the rig, aimed at the turntable. The strips spread light evenly over
+  // everything, which is even but flat; a spot is what puts a bright pool on the floor
+  // and a hard edge along a shoulder line, and it is the difference between a car that
+  // is merely visible and one that looks lit. Three of them, from three directions, so
+  // the turntable never presents a side that nothing is pointed at.
+  addProjectors(s) {
+    const aim = new THREE.Object3D();
+    aim.position.set(0, 0.85, 0);
+    s.add(aim);
+
+    const shell = new THREE.MeshStandardMaterial({ color: '#171d26', roughness: 0.45, metalness: 0.7 });
+    const glass = new THREE.MeshBasicMaterial({ color: '#f4f8ff' });
+    const barrelGeo = new THREE.CylinderGeometry(0.36, 0.5, 1.2, 20, 1, true);
+    const lensGeo = new THREE.CircleGeometry(0.36, 20);
+    const yokeGeo = new THREE.TorusGeometry(0.54, 0.055, 6, 20);
+
+    for (const [az, colour, power] of [[0.65, '#ffffff', 1500], [2.75, '#d7e8ff', 1150], [4.65, '#ffdfbe', 1150]]) {
+      const at = new THREE.Vector3(Math.sin(az) * 13, 7.6, Math.cos(az) * 13);
+      const spot = new THREE.SpotLight(colour, power, 46, 0.38, 0.65, 2);
+      spot.position.copy(at);
+      spot.target = aim;
+      s.add(spot);
+
+      const rig = new THREE.Group();
+      const barrel = new THREE.Mesh(barrelGeo, shell);
+      barrel.rotation.x = Math.PI / 2;            // the cylinder runs down +Z, the way it points
+      const lens = new THREE.Mesh(lensGeo, glass);
+      lens.position.z = 0.61;
+      const yoke = new THREE.Mesh(yokeGeo, shell);
+      rig.add(barrel, lens, yoke);
+      rig.position.copy(at);
+      rig.lookAt(aim.position);                   // a Mesh turns its +Z to face a point
+      s.add(rig);
+    }
   }
 
   // The three strips, as things you can see. The environment map already puts them in
@@ -235,18 +273,15 @@ class Game {
       bar.add(box, face, glow);
       bar.position.set(0, 5.9, z);
       s.add(bar);
-
-      // and the light itself, hung just under its lens so the falloff lines up with it
-      const lamp = new THREE.PointLight('#dceaff', 130, 30, 2);
-      lamp.position.set(0, 5.5, z);
-      s.add(lamp);
     }
   }
 
   buildShowroom() {
     const s = (this.showroom = new THREE.Scene());
-    s.background = new THREE.Color('#12161c');
-    s.environment = this.studioEnv();
+    const { env, backdrop } = this.studioEnv();
+    s.environment = env;
+    s.background = backdrop;
+    s.backgroundBlurriness = 0.35;
 
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(30, 64),
@@ -285,6 +320,7 @@ class Game {
     s.add(ring);
 
     this.addStudioStrips(s);
+    this.addProjectors(s);
 
     const key = new THREE.DirectionalLight('#ffffff', 3.1);
     key.position.set(6, 9, 7);
@@ -292,8 +328,6 @@ class Game {
     key.shadow.mapSize.set(1024, 1024);
     Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 });
     key.shadow.bias = -0.0008;
-    const rim = new THREE.DirectionalLight('#9fdcff', 2.1);
-    rim.position.set(-7, 4, -6);
     // Low and warm from the front quarter. Every other lamp here is above the car, and
     // something has to reach under the arches and along the sills or the bottom half of
     // the car stays a silhouette however bright the top half is.
@@ -302,7 +336,13 @@ class Game {
     // The ground colour is the floor answering back. Near-black here was half the
     // problem: it meant everything below the waistline was lit by nothing at all.
     const fill = new THREE.HemisphereLight('#dfecff', '#3c4553', 1.5);
-    s.add(key, rim, kick, fill);
+    s.add(key, kick, fill);
+
+    // A fill that rides with the camera. Every other lamp here is bolted to the room, so
+    // whichever way the turntable had got to, the side facing you was in shadow half the
+    // time. This one is always on the side you are looking from.
+    this.showFill = new THREE.DirectionalLight('#e8f1ff', 1.6);
+    s.add(this.showFill, this.showFill.target);
 
     this.showCar = null;
     this.showAngle = 0.6;
@@ -881,6 +921,7 @@ class Game {
       this.camera.updateProjectionMatrix();
       this.camera.position.set(Math.sin(this.showAngle) * r, h, Math.cos(this.showAngle) * r);
       this.camera.lookAt(0, 0.72, 0);
+      this.showFill.position.copy(this.camera.position);
       if (this.showCar) this.showCar.rotation.y = 0;
       this.renderer.render(this.showroom, this.camera);
       return;
