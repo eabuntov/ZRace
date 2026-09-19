@@ -57,6 +57,13 @@ export default {
   'options.heading': 'Optionen',
   'options.language': 'SPRACHE',
   'options.auto': 'AUTOM.',
+  'options.caravans': 'KARAWANEN',
+  'options.caravansNote': 'Drei Kamele ziehen gemächlich ihre Runden, jedes mit einer Truhe auf dem Höcker. Kommen Sie im Auslauf nah genug heran, gehören die Münzen Ihnen. Am Rennen nehmen sie nicht teil.',
+  'opt.on': 'AN',
+  'opt.off': 'AUS',
+  'msg.robbed': 'KARAWANE AUSGERAUBT<small>+{n} MÜNZEN</small>',
+  'hud.coins': 'MÜNZEN',
+  'title.purse': 'KASSE',
   'options.languageNote': 'AUTOM. folgt der Sprache, die dein Browser anfragt. Alles andere '
     + 'wird auf diesem Rechner gemerkt. Wagen- und Streckennamen bleiben überall gleich.',
 

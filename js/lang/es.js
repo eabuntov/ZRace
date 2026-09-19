@@ -57,6 +57,13 @@ export default {
   'options.heading': 'Opciones',
   'options.language': 'IDIOMA',
   'options.auto': 'AUTO',
+  'options.caravans': 'CARAVANAS',
+  'options.caravansNote': 'Tres camellos recorren el circuito sin prisa, cada uno con un cofre a la espalda. Pásate cerca de uno por el escape y las monedas son tuyas. No corren.',
+  'opt.on': 'SÍ',
+  'opt.off': 'NO',
+  'msg.robbed': 'CARAVANA ASALTADA<small>+{n} MONEDAS</small>',
+  'hud.coins': 'MONEDAS',
+  'title.purse': 'BOLSA',
   'options.languageNote': 'AUTO sigue el idioma que pide tu navegador. Cualquier otra elección '
     + 'se recuerda en esta máquina. Los nombres de coches y circuitos no cambian en ningún idioma.',
 

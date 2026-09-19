@@ -57,6 +57,13 @@ export default {
   'options.heading': 'Opzioni',
   'options.language': 'LINGUA',
   'options.auto': 'AUTO',
+  'options.caravans': 'CAROVANE',
+  'options.caravansNote': 'Tre cammelli girano con calma intorno al circuito, ognuno con uno scrigno in groppa. Passagli vicino nella via di fuga e le monete sono tue. Non corrono.',
+  'opt.on': 'SÌ',
+  'opt.off': 'NO',
+  'msg.robbed': 'CAROVANA SVALIGIATA<small>+{n} MONETE</small>',
+  'hud.coins': 'MONETE',
+  'title.purse': 'BORSA',
   'options.languageNote': 'AUTO segue la lingua richiesta dal browser. Ogni altra scelta resta '
     + 'memorizzata su questa macchina. I nomi di auto e circuiti restano uguali in ogni lingua.',
 

@@ -7,6 +7,7 @@ import { CARS, PAINTS, buildCar, animateCar, addBoostJet } from './cars.js';
 import { loadShowroomCar, repaintShowroomCar } from './carModel.js';
 import { rigScan } from './carRig.js';
 import { Vehicle, resolveCollisions } from './physics.js';
+import { Caravan } from './caravan.js';
 import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
@@ -54,7 +55,7 @@ class Game {
 
     this.settings = Object.assign(
       { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
-        name: Records.DEFAULT_NAME, lang: 'auto' },
+        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, coins: 0 },
       this.load()
     );
     this.best = this.settings.best || {};
@@ -103,6 +104,7 @@ class Game {
     this.ui.buildOptions(this.settings);
     this.ui.buildLanguages(this.settings.lang);
     this.ui.setName(this.settings.name);
+    this.ui.setCoins(this.settings.coins || 0);
     this.ui.show('title');
 
     this.bindKeys();
@@ -577,6 +579,12 @@ class Game {
     this.player = this.cars[this.cars.length - 1];
     if (this.autopilot) this.player.ai = new AIDriver(this.player, path, this.line, { skill: 0.95 });
 
+    // Опционально, по многочисленным просьбам. The caravan is built after the cars and
+    // kept out of `this.cars`, so lap counting, the standings and the results table never
+    // see it - the only thing that crosses back is a count of coins.
+    this.caravan = this.settings.caravans ? new Caravan(this.raceScene, path, this.world) : null;
+    this.ui.coinsVisible(!!this.caravan);
+
     this.ui.prepMinimap(path);
     this.raceTime = 0;
     this.countdown = 0.9;
@@ -636,6 +644,7 @@ class Game {
   }
 
   endRace(clear) {
+    if (this.caravan) { this.caravan.dispose(); this.caravan = null; }
     if (this.world) { this.world.dispose(); this.world = null; }
     if (this.raceScene) {
       this.raceScene.traverse((o) => {
@@ -780,6 +789,12 @@ class Game {
       if (p.impact > 4) this.audio.hit(p.impact);
     }
 
+    // the caravan, and whatever the player relieved it of
+    if (this.caravan) {
+      const took = this.caravan.update(dt, this.player, this.state === 'racing');
+      if (took) this.onRobbery(took);
+    }
+
     // meshes
     for (const car of cars) {
       car.mesh.position.set(car.x, car.y + car.rollLift, car.z);
@@ -799,6 +814,17 @@ class Game {
       this.finishTimer += dt;
       if (this.finishTimer > 2.6) { this.resultsShown = true; this.showResults(); }
     }
+  }
+
+  // Coins go to the driver, not to the race: the purse is part of the saved settings and
+  // survives the session, which is the whole of what "an account" means here.
+  onRobbery(n) {
+    this.settings.coins = (this.settings.coins || 0) + n;
+    this.ui.setCoins(this.settings.coins);
+    this.ui.message(t('msg.robbed', { n: num(n) }), 'good', 1400);
+    this.audio.beep(1180, 0.07, 0.13);
+    setTimeout(() => this.audio.beep(1560, 0.09, 0.11), 70);
+    this.save();
   }
 
   onPlayerLap(lap, n) {

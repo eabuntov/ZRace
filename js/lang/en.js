@@ -69,6 +69,13 @@ export default {
   'options.heading': 'Options',
   'options.language': 'LANGUAGE',
   'options.auto': 'AUTO',
+  'options.caravans': 'CARAVANS',
+  'options.caravansNote': 'Three camels amble around the circuit carrying a strongbox each. Pass close to one in the run-off and the coins are yours. They do not take part in the race.',
+  'opt.on': 'ON',
+  'opt.off': 'OFF',
+  'msg.robbed': 'CARAVAN ROBBED<small>+{n} COINS</small>',
+  'hud.coins': 'COINS',
+  'title.purse': 'PURSE',
   'options.languageNote': 'AUTO follows the language your browser asks for. Anything else '
     + 'is remembered on this machine. Car and circuit names stay as they are everywhere.',
 

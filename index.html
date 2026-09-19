@@ -49,6 +49,8 @@
 
   <div id="boostfx" aria-hidden="true"></div>
 
+  <div id="coins" class="coins hidden"><i>◉</i><b id="coinCount">0</b><label data-i18n="hud.coins">COINS</label></div>
+
   <div id="lights" class="start-lights"></div>
   <div id="msg" class="center-msg"></div>
 
@@ -77,6 +79,7 @@
                data-i18n-placeholder="title.namePlaceholder" data-i18n-aria="title.nameAria"
                placeholder="Your name" aria-label="Driver name" />
       </label>
+      <p class="purse hidden" id="purse"><span data-i18n="title.purse">PURSE</span> <b id="purseCount">0</b></p>
       <div class="menu-buttons">
         <button class="primary" data-go="car" data-i18n="title.start">START A RACE</button>
         <button data-go="timetrial" data-i18n="title.timeTrial">TIME TRIAL</button>
@@ -156,6 +159,11 @@
         <div class="seg wrap-seg" id="optLang"></div>
       </div>
       <p class="disclaimer" data-i18n="options.languageNote"></p>
+      <div class="opt-row">
+        <label data-i18n="options.caravans">CARAVANS</label>
+        <div class="seg" id="optCaravans"></div>
+      </div>
+      <p class="disclaimer" data-i18n="options.caravansNote"></p>
     </div>
   </section>
 

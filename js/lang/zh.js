@@ -54,6 +54,13 @@ export default {
   'options.heading': '设置',
   'options.language': '语言',
   'options.auto': '自动',
+  'options.caravans': '商队',
+  'options.caravansNote': '三只骆驼绕着赛道慢慢走，每只背上都驮着一个钱箱。在缓冲区擦身而过，金币就归你了。它们不参加比赛。',
+  'opt.on': '开',
+  'opt.off': '关',
+  'msg.robbed': '商队已洗劫<small>+{n} 金币</small>',
+  'hud.coins': '金币',
+  'title.purse': '钱袋',
   'options.languageNote': '“自动”会跟随浏览器所请求的语言；其他选择会记在这台机器上。'
     + '车型名与赛道名在任何语言下都保持原样。',
 

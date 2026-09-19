@@ -267,6 +267,25 @@ table.results.records td.empty { color: var(--muted); text-align: center; paddin
   #boostfx::before { animation: none; opacity: 0.25; }
 }
 
+/* the caravan's coins: a pill at the top, and the standing total on the title screen */
+.coins {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(10, 13, 17, 0.6); border: 1px solid rgba(232, 181, 58, 0.35);
+  border-radius: 999px; padding: 5px 14px 5px 11px; backdrop-filter: blur(4px);
+}
+.coins i { font-style: normal; color: #e8b53a; font-size: 14px; line-height: 1; }
+.coins b { font-family: var(--mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.coins label { font-size: 9.5px; letter-spacing: 0.18em; color: var(--muted); }
+.coins.bump b { animation: coinbump 0.45s ease; }
+@keyframes coinbump {
+  0% { transform: scale(1); color: var(--text); }
+  35% { transform: scale(1.35); color: #e8b53a; }
+  100% { transform: scale(1); color: var(--text); }
+}
+.purse { margin: -8px 0 22px; font-size: 11px; letter-spacing: 0.14em; color: var(--muted); }
+.purse b { color: #e8b53a; font-family: var(--mono); font-size: 14px; letter-spacing: 0; }
+
 /* touch */
 .touch { position: absolute; inset: 0; pointer-events: none; }
 .touch-left, .touch-right {

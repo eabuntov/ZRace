@@ -57,6 +57,13 @@ export default {
   'options.heading': 'Options',
   'options.language': 'LANGUE',
   'options.auto': 'AUTO',
+  'options.caravans': 'CARAVANES',
+  'options.caravansNote': 'Trois chameaux font tranquillement le tour du circuit, un coffre sur chaque bosse. Frôlez-en un dans le dégagement et les pièces sont à vous. Ils ne courent pas.',
+  'opt.on': 'OUI',
+  'opt.off': 'NON',
+  'msg.robbed': 'CARAVANE DÉVALISÉE<small>+{n} PIÈCES</small>',
+  'hud.coins': 'PIÈCES',
+  'title.purse': 'BOURSE',
   'options.languageNote': 'AUTO suit la langue demandée par votre navigateur. Tout autre choix '
     + 'est retenu sur cette machine. Les noms de voitures et de circuits restent partout les mêmes.',
 

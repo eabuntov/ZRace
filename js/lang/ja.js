@@ -55,6 +55,13 @@ export default {
   'options.heading': '設定',
   'options.language': '言語',
   'options.auto': '自動',
+  'options.caravans': '隊商',
+  'options.caravansNote': 'ラクダ三頭がコースをゆっくり歩いています。背中の宝箱を狙って、エスケープゾーンですれ違えばコインは手に入ります。レースには参加しません。',
+  'opt.on': 'オン',
+  'opt.off': 'オフ',
+  'msg.robbed': '隊商を襲撃<small>+{n} コイン</small>',
+  'hud.coins': 'コイン',
+  'title.purse': '所持金',
   'options.languageNote': '「自動」はブラウザーが要求する言語に従います。それ以外を選ぶと、'
     + 'この端末に記憶されます。車名とコース名はどの言語でもそのままです。',
 

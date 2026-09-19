@@ -203,6 +203,7 @@ export class UI {
 
   buildOptions(state) {
     const seg = (el, values, cur, key, label = (v) => v) => {
+      if (!el) return;
       el.innerHTML = '';
       values.forEach((v) => {
         const b = document.createElement('button');
@@ -215,7 +216,27 @@ export class UI {
     seg($('optLaps'), [1, 2, 3, 5], state.laps, 'laps', (v) => num(v));
     seg($('optCars'), [0, 1, 3, 5], state.opponents, 'opponents', (v) => num(v));
     seg($('optDiff'), ['easy', 'normal', 'hard'], state.difficulty, 'difficulty', (v) => t(`diff.${v}`));
+    // Lives on the options screen rather than beside the race settings: it is a thing
+    // about the world, not about this race.
+    seg($('optCaravans'), [false, true], !!state.caravans, 'caravans', (v) => t(v ? 'opt.on' : 'opt.off'));
   }
+
+  // The standing total, on the title screen and in the HUD. Hidden at zero on the title
+  // screen so a player who never turns caravans on is never told about them there.
+  setCoins(n) {
+    const count = $('coinCount'), purse = $('purseCount'), row = $('purse');
+    if (count && count.textContent !== String(n)) {
+      count.textContent = num(n);
+      const el = $('coins');
+      el.classList.remove('bump');
+      void el.offsetWidth;                       // restart the animation
+      el.classList.add('bump');
+    }
+    if (purse) purse.textContent = num(n);
+    if (row) row.classList.toggle('hidden', !n);
+  }
+
+  coinsVisible(v) { $('coins').classList.toggle('hidden', !v); }
 
   // ---------------------------------------------------------------- options
   // AUTO first, then every catalogue by its own name - a language nobody can read is a
