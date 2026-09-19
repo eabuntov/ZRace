@@ -75,6 +75,16 @@ class Game {
     this.elapsed = 0;
     this.camPos = new THREE.Vector3();
     this.camLook = new THREE.Vector3();
+    // Camera shake: a smoothed level, a decaying kick for impacts, a phase to drive the
+    // oscillators, and two scratch vectors so the loop allocates nothing.
+    this.shake = 0;
+    this.shakeKick = 0;
+    this.shakeT = 0;
+    this.shakeRight = new THREE.Vector3();
+    this.shakeUp = new THREE.Vector3();
+    // Somebody who has asked their system not to animate things at them should not be
+    // handed a shaking camera the moment they put two wheels on the grass.
+    this.calmCamera = matchMedia('(prefers-reduced-motion: reduce)');
 
     this.tracks = TRACKS.map((def) => ({ def, path: new TrackPath(def) }));
 
@@ -904,6 +914,7 @@ class Game {
       this.camera.up.set(0, 1, 0);
       this.camera.lookAt(this.camLook);
       this.camera.rotation.z = -p.roll * 0.5;
+      this.applyShake(dt, p, mode);
       return;
     }
     // The camera trails the car's velocity direction so slides look dramatic - but only
@@ -923,11 +934,56 @@ class Game {
     this.camLook.lerp(look, Math.min(1, dt * 9));
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.camLook);
-    if (p.impact > 3) {
-      const a = Math.min(0.05, p.impact * 0.004);
-      this.camera.position.x += (Math.random() - 0.5) * a * 8;
-      this.camera.position.y += (Math.random() - 0.5) * a * 8;
-    }
+    this.applyShake(dt, p, mode);
+  }
+
+  // Shake, for the two things that shake a car: the surface under it and hitting
+  // something. The physics already works out how rough the ground is - `rumble` is the
+  // surface's own roughness scaled by how fast you are crossing it, and it is the same
+  // number that drives the rumble in the speakers, so the picture and the sound agree.
+  // Tarmac is zero, so on the road this costs a comparison and nothing else.
+  //
+  // Applied after lookAt, in the camera's own right/up, so it is a shake of the image
+  // rather than of the car's position in the world - and applied to the camera only, so
+  // it can never feed back into where the chase camera thinks it should be.
+  applyShake(dt, p, mode) {
+    const target = p.rumble || 0;
+    // rises fast onto a kerb, falls away a little more slowly coming off it
+    this.shake += (target - this.shake) * Math.min(1, dt * (target > this.shake ? 22 : 9));
+    this.shakeKick = Math.max(0, this.shakeKick - dt * 3.2);
+    if (p.impact > 3) this.shakeKick = Math.max(this.shakeKick, Math.min(1, p.impact * 0.055));
+    if (this.calmCamera.matches) return;
+
+    // The shake is mostly angular. Shoving a camera seven metres behind the car sideways
+    // by a couple of centimetres moves the picture by about a fifth of a degree, which is
+    // to say not at all; turning it by a fifth of a degree moves the picture by a fifth of
+    // a degree wherever it happens to be standing. The positional part is kept because it
+    // still tells on the bonnet camera, which sits a hand's breadth off the bodywork.
+    //
+    // The bonnet camera is bolted to the car and gets the full measure; the chase camera
+    // is nominally a helicopter and gets about two thirds.
+    const bonnet = !!mode.bonnet;
+    const ang = this.shake * (bonnet ? 0.019 : 0.013) + this.shakeKick * 0.030;
+    const off = this.shake * (bonnet ? 0.050 : 0.030) + this.shakeKick * 0.120;
+    if (ang < 0.00004) return;
+
+    this.shakeT += dt;
+    const t = this.shakeT;
+    // Three incommensurate oscillators plus a little grit: a single sine reads as a
+    // wobble, and pure noise reads as a fault in the renderer.
+    const ox = Math.sin(t * 31) * 0.55 + Math.sin(t * 47 + 1.3) * 0.3 + (Math.random() - 0.5) * 0.3;
+    const oy = Math.sin(t * 37 + 0.7) * 0.55 + Math.sin(t * 19 + 2.1) * 0.3 + (Math.random() - 0.5) * 0.3;
+    const rz = Math.sin(t * 23 + 0.4) * 0.6 + (Math.random() - 0.5) * 0.2;
+
+    const q = this.camera.quaternion;
+    this.shakeRight.set(1, 0, 0).applyQuaternion(q);
+    this.shakeUp.set(0, 1, 0).applyQuaternion(q);
+    this.camera.position.addScaledVector(this.shakeRight, ox * off);
+    this.camera.position.addScaledVector(this.shakeUp, oy * off);
+    // local axes, so this is a shake of the image whichever way the camera is pointing
+    this.camera.rotateX(oy * ang);
+    this.camera.rotateY(ox * ang);
+    this.camera.rotateZ(rz * ang * 0.5);
   }
 
   updateHud() {
