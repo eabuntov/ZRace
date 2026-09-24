@@ -56,6 +56,8 @@ export default {
   'options.auto': '自动',
   'options.caravans': '商队',
   'options.caravansNote': '三只骆驼绕着赛道慢慢走，每只背上都驮着一个钱箱。在缓冲区擦身而过，金币就归你了。它们不参加比赛。',
+  'options.glow': '光晕',
+  'options.glowNote': '刹车灯、大灯和太阳会在周围晕出一点光。如果游戏在这台电脑上卡顿，请关闭。',
   'opt.on': '开',
   'opt.off': '关',
   'msg.robbed': '商队已洗劫<small>+{n} 金币</small>',

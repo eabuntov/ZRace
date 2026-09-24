@@ -71,6 +71,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CARAVANS',
   'options.caravansNote': 'Three camels amble around the circuit carrying a strongbox each. Pass close to one in the run-off and the coins are yours. They do not take part in the race.',
+  'options.glow': 'LIGHT GLOW',
+  'options.glowNote': 'Brake lights, headlamps and the sun bleed a little light into the picture around them. Turn it off if the game stutters on this computer.',
   'opt.on': 'ON',
   'opt.off': 'OFF',
   'msg.robbed': 'CARAVAN ROBBED<small>+{n} COINS</small>',

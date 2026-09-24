@@ -190,10 +190,22 @@ export class TrackWorld {
     this.sun.target.updateMatrixWorld();
   }
 
-  _sky() {
+  // The sky dome, as a material, because it is drawn twice: once as the backdrop and once
+  // into the environment map the paint and the glass reflect. `forDisplay` is the
+  // difference between the two.
+  //
+  // The backdrop's colours were chosen as they looked when this shader wrote them straight
+  // to the screen, with no tone mapping and no sRGB encode. Everything else in the scene
+  // gets both, and the bloom pass needs the sky to go through the same pipeline as
+  // everything else: it works in linear light and tone maps at the very end. So the
+  // backdrop works out the value that the ACES curve and the encode will turn back into
+  // the colour it used to write, and outputs that. It looks the same as it always has, and
+  // only the sun's disc is added on top in real HDR, which is what makes it bloom.
+  // The reflection wants the colours as they are, the same values the old painted gradient
+  // gave the paint.
+  _skyMaterial(forDisplay) {
     const t = this.theme;
-    const geo = new THREE.SphereGeometry(7000, 32, 16);
-    const mat = new THREE.ShaderMaterial({
+    return new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
@@ -202,26 +214,124 @@ export class TrackWorld {
         horizon: { value: new THREE.Color(t.sky.horizon) },
         sunDir: { value: this.sunDir.clone() },
         sunColor: { value: new THREE.Color(t.sun.color) },
+        cover: { value: t.clouds != null ? t.clouds : 0.56 },
+        time: { value: 0 },
       },
+      defines: forDisplay ? { DISPLAY: 1 } : {},
       vertexShader: `varying vec3 vDir;
         void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor;
+        uniform float cover; uniform float time;
         varying vec3 vDir;
+        float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+        float noise(vec2 p){
+          vec2 i = floor(p), f = fract(p), u = f*f*(3.0-2.0*f);
+          return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), u.x), mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), u.x), u.y);
+        }
+        vec3 srgbToLinear(vec3 c){
+          return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+        }
+        // three's ACESFilmicToneMapping, run backwards. The exposure is the renderer's,
+        // from main.js; the matrices and the fit are copied out of three's tone mapping chunk.
+        vec3 unACES(vec3 y){
+          const float exposure = 1.02;
+          mat3 inM = mat3(vec3(0.59719, 0.07600, 0.02840), vec3(0.35458, 0.90834, 0.13383), vec3(0.04823, 0.01566, 0.83777));
+          mat3 outM = mat3(vec3(1.60475, -0.10208, -0.00327), vec3(-0.53108, 1.10813, -0.07276), vec3(-0.07367, -0.00605, 1.07602));
+          vec3 w = clamp(inverse(outM) * y, 0.0, 0.98);
+          vec3 A = 1.0 - w * 0.983729;
+          vec3 B = 0.0245786 - w * 0.4329510;
+          vec3 C = -(0.000090537 + w * 0.238081);
+          vec3 v = (-B + sqrt(B*B - 4.0*A*C)) / (2.0*A);
+          return max(inverse(inM) * v, 0.0) * (0.6 / exposure);
+        }
+        float fbm(vec2 p){
+          float v = 0.0, a = 0.5;
+          mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+          for (int i = 0; i < 5; i++) { v += a*noise(p); p = m*p; a *= 0.5; }
+          return v;
+        }
         void main(){
-          float h = clamp(vDir.y*1.35+0.05, 0.0, 1.0);
-          vec3 col = mix(horizon, top, pow(h, 0.72));
-          float d = max(dot(normalize(vDir), normalize(sunDir)), 0.0);
-          col += sunColor * (pow(d, 220.0)*1.6 + pow(d, 9.0)*0.22);
+          vec3 dir = normalize(vDir);
+          vec3 sd = normalize(sunDir);
+          #ifdef DISPLAY
+          float h = pow(clamp(dir.y*1.35+0.05, 0.0, 1.0), 0.72);
+          #else
+          // The reflection spreads the gradient evenly from horizon to zenith, as the old
+          // painted one did. The backdrop's goes to deep blue by 45 degrees, and a dome
+          // that dark overhead is too little light for the road and the grass underneath.
+          float h = clamp(asin(max(dir.y, 0.0)) / 1.5708, 0.0, 1.0);
+          #endif
+          vec3 col = mix(horizon, top, h);
+          float d = max(dot(dir, sd), 0.0);
+
+          // Clouds: noise on a flat ceiling, found by running the view ray up to it, so
+          // they crowd together and flatten out towards the horizon the way real ones do.
+          // They drift a little with time, and are lit by comparing the density here with
+          // the density a step towards the sun: thinning towards the sun means a lit edge.
+          float fade = smoothstep(0.015, 0.22, dir.y);
+          float dens = 0.0;
+          if (fade > 0.0) {
+            vec2 p = dir.xz / max(dir.y, 0.03) * 0.9 + vec2(time*0.012, time*0.005);
+            float n = fbm(p);
+            dens = smoothstep(cover, cover + 0.3, n) * fade;
+            float n2 = fbm(p + normalize(sd.xz + 1e-4) * 0.18);
+            float lit = clamp(0.62 + (n - n2) * 3.2, 0.2, 1.0);
+            vec3 shade = mix(top, horizon, 0.55) * 0.72;
+            vec3 bright = mix(vec3(1.0), sunColor, 0.45) * 1.05;
+            vec3 cloud = mix(shade, bright, lit);
+            cloud += sunColor * pow(d, 14.0) * 0.5 * (1.0 - dens);
+            col = mix(col, cloud, dens * 0.92);
+          }
+          float clear = 1.0 - dens*0.85;
+          col += sunColor * pow(d, 9.0)*0.22 * clear;
+          #ifdef DISPLAY
+          col = unACES(srgbToLinear(min(col, vec3(0.97))));
+          col += sunColor * pow(d, 220.0) * 3.0 * clear;
+          #else
+          // Taken a third of the way to grey. All of it is also the light the road and the
+          // grass get from the sky, and a dusk sky at full strength turned the tarmac navy.
+          col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 0.65);
+          col += sunColor * pow(d, 220.0) * 1.6 * clear;
+          #endif
           gl_FragColor = vec4(col, 1.0);
+          #ifdef DISPLAY
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          #endif
         }`,
     });
-    const sky = new THREE.Mesh(geo, mat);
+  }
+
+  _sky() {
+    const t = this.theme;
+    const geo = new THREE.SphereGeometry(7000, 32, 16);
+    const sky = new THREE.Mesh(geo, this._skyMaterial(true));
     sky.frustumCulled = false;
     this.group.add(sky);
     this.disposables.push(sky);
+    this.skyMat = sky.material;
 
     if (t.mountains) this._mountains(t.mountains);
     if (t.skyline) this._skyline(t.skyline);
+  }
+
+  // What the cars reflect: this circuit's own sky, clouds and sun where they are, over a
+  // dark ground. It replaces a painted gradient that put the same sun in the same corner
+  // of every circuit, so the highlight on the paint pointed the wrong way at four of them.
+  environment(pmrem) {
+    const s = new THREE.Scene();
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), this._skyMaterial(false));
+    sky.material.uniforms.time.value = 0;
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(100, 32),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color('#2f3236').lerp(new THREE.Color(this.theme.hemi.ground), 0.25) })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -2;
+    s.add(sky, ground);
+    this.envTarget = pmrem.fromScene(s, 0.01, 0.1, 400);
+    for (const m of [sky, ground]) { m.geometry.dispose(); m.material.dispose(); }
+    return this.envTarget.texture;
   }
 
   _mountains(cfg) {
@@ -1039,6 +1149,7 @@ export class TrackWorld {
 
   update(dt, elapsed) {
     if (this.ferris) this.ferris.rotation.z += dt * 0.12;
+    if (this.skyMat) this.skyMat.uniforms.time.value = elapsed;
     if (this.waterMap) {
       this.waterMap.offset.x = Math.sin(elapsed * 0.05) * 0.01;
       this.waterMap.offset.y = elapsed * 0.004;
@@ -1067,6 +1178,7 @@ export class TrackWorld {
       }
     });
     this.scene.fog = null;
+    if (this.envTarget) { this.envTarget.dispose(); this.envTarget = null; }
   }
 }
 

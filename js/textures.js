@@ -348,6 +348,28 @@ export function glowTexture() {
   });
 }
 
+// One puff of tyre smoke or dust: a ragged cluster of soft blobs rather than a single
+// disc, so a cloud of them reads as smoke and not as a stack of circles. Only the alpha
+// is read; the colour comes from the particle.
+export function puffTexture() {
+  return cached('puff', () => {
+    const c = canvas(128, 128), ctx = c.getContext('2d');
+    const rnd = mulberry(77);
+    for (let i = 0; i < 14; i++) {
+      const a = rnd() * Math.PI * 2, r = rnd() * 26;
+      const x = 64 + Math.cos(a) * r, y = 64 + Math.sin(a) * r, s = 18 + rnd() * 20;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, s);
+      g.addColorStop(0, 'rgba(255,255,255,0.34)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.NoColorSpace;
+    return t;
+  });
+}
+
 // Soft round shadow blob placed under each car.
 export function shadowTexture() {
   return cached('shadow', () => {

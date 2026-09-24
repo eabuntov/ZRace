@@ -57,6 +57,8 @@ export default {
   'options.auto': '自動',
   'options.caravans': '隊商',
   'options.caravansNote': 'ラクダ三頭がコースをゆっくり歩いています。背中の宝箱を狙って、エスケープゾーンですれ違えばコインは手に入ります。レースには参加しません。',
+  'options.glow': '光のにじみ',
+  'options.glowNote': 'ブレーキランプ、ヘッドライト、太陽の光が周りに少しにじみます。このパソコンで動作が重い場合はオフにしてください。',
   'opt.on': 'オン',
   'opt.off': 'オフ',
   'msg.robbed': '隊商を襲撃<small>+{n} コイン</small>',

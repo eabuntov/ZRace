@@ -59,6 +59,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CARAVANAS',
   'options.caravansNote': 'Tres camellos recorren el circuito sin prisa, cada uno con un cofre a la espalda. Pásate cerca de uno por el escape y las monedas son tuyas. No corren.',
+  'options.glow': 'RESPLANDOR',
+  'options.glowNote': 'Las luces de freno, los faros y el sol desbordan un poco de luz a su alrededor. Desactívalo si el juego va a tirones en este equipo.',
   'opt.on': 'SÍ',
   'opt.off': 'NO',
   'msg.robbed': 'CARAVANA ASALTADA<small>+{n} MONEDAS</small>',

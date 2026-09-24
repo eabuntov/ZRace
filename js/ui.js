@@ -219,6 +219,7 @@ export class UI {
     // Lives on the options screen rather than beside the race settings: it is a thing
     // about the world, not about this race.
     seg($('optCaravans'), [false, true], !!state.caravans, 'caravans', (v) => t(v ? 'opt.on' : 'opt.off'));
+    seg($('optGlow'), [false, true], !!state.glow, 'glow', (v) => t(v ? 'opt.on' : 'opt.off'));
   }
 
   // The standing total, on the title screen and in the HUD. Hidden at zero on the title

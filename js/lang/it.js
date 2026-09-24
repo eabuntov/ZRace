@@ -59,6 +59,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CAROVANE',
   'options.caravansNote': 'Tre cammelli girano con calma intorno al circuito, ognuno con uno scrigno in groppa. Passagli vicino nella via di fuga e le monete sono tue. Non corrono.',
+  'options.glow': 'BAGLIORE',
+  'options.glowNote': 'Luci di stop, fari e sole irradiano un po’ di luce attorno a sé. Disattivalo se il gioco scatta su questo computer.',
   'opt.on': 'SÌ',
   'opt.off': 'NO',
   'msg.robbed': 'CAROVANA SVALIGIATA<small>+{n} MONETE</small>',

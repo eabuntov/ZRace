@@ -59,6 +59,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CARAVANES',
   'options.caravansNote': 'Trois chameaux font tranquillement le tour du circuit, un coffre sur chaque bosse. Frôlez-en un dans le dégagement et les pièces sont à vous. Ils ne courent pas.',
+  'options.glow': 'HALO LUMINEUX',
+  'options.glowNote': 'Feux stop, phares et soleil débordent un peu de lumière autour d’eux. Désactivez-le si le jeu saccade sur cet ordinateur.',
   'opt.on': 'OUI',
   'opt.off': 'NON',
   'msg.robbed': 'CARAVANE DÉVALISÉE<small>+{n} PIÈCES</small>',

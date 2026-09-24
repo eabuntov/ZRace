@@ -274,7 +274,9 @@ css/style.css       all styling
 js/main.js          renderer, showroom, race loop and race rules
 js/trackPath.js     centreline maths: spline, elevation, projection (pure, testable in Node)
 js/tracks.js        the five circuits and their themes
-js/trackBuild.js    3D world: road, kerbs, barriers, terrain, water, scenery, sky
+js/trackBuild.js    3D world: road, kerbs, barriers, terrain, water, scenery, sky, clouds, reflections
+js/effects.js       skid marks, tyre smoke and run-off dust
+js/post.js          bloom and the final tone mapping pass
 js/cars.js          car specs, the procedural car models and the boost plume
 js/physics.js       vehicle model, surfaces, barrier and car-to-car collisions
 js/ai.js            racing line, speed profile and the opponent drivers

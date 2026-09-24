@@ -12,6 +12,8 @@ import { AIDriver, computeRacingLine, driverName } from './ai.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { UI, formatTime } from './ui.js';
+import { PostFX } from './post.js';
+import { TyreEffects } from './effects.js';
 import * as Records from './records.js';
 import { t, num, setLanguage } from './i18n.js';
 import { setMaxAnisotropy, shadowTexture, glowTexture, studioFloorTexture } from './textures.js';
@@ -52,13 +54,15 @@ class Game {
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.3, 9000);
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.post = new PostFX(this.renderer);
 
     this.settings = Object.assign(
       { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
-        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, coins: 0 },
+        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, glow: false, coins: 0 },
       this.load()
     );
     this.best = this.settings.best || {};
+    this.post.enabled = !!this.settings.glow;
     this.records = Records.load();
     this.recordTrack = this.settings.trackIndex;
     this.recordScope = 'global';
@@ -143,33 +147,6 @@ class Game {
   }
 
   // ------------------------------------------------------------- showroom
-  envFor(theme) {
-    const c = document.createElement('canvas');
-    c.width = 512; c.height = 256;
-    const ctx = c.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, theme ? theme.sky.top : '#2b3a52');
-    g.addColorStop(0.48, theme ? theme.sky.horizon : '#9fb2c6');
-    g.addColorStop(0.52, '#44484d');
-    g.addColorStop(1, '#141618');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 512, 256);
-    // sun blob + a couple of soft highlights so the paint has something to reflect
-    const sun = ctx.createRadialGradient(150, 60, 4, 150, 60, 70);
-    sun.addColorStop(0, '#ffffff');
-    sun.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = sun;
-    ctx.fillRect(80, 0, 150, 130);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillRect(330, 40, 120, 26);
-    const tex = new THREE.CanvasTexture(c);
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const env = this.pmrem.fromEquirectangular(tex).texture;
-    tex.dispose();
-    return env;
-  }
-
   // The showroom gets a studio of its own rather than the sky a circuit uses. A sky is
   // one bright dome overhead: it lights a roof and a bonnet and leaves the flanks, the
   // sills and the wheels to fall away into the background, which is why the car on the
@@ -504,6 +481,7 @@ class Game {
 
   setOption(k, v) {
     this.settings[k] = v;
+    if (k === 'glow') this.post.enabled = !!v;
     this.ui.buildOptions(this.settings);
     this.save();
   }
@@ -541,8 +519,8 @@ class Game {
     const t0 = performance.now();
     const { def, path } = this.tracks[this.settings.trackIndex];
     this.raceScene = new THREE.Scene();
-    this.raceScene.environment = this.envFor(def.theme);
     this.world = new TrackWorld(this.raceScene, path, def);
+    this.raceScene.environment = this.world.environment(this.pmrem);
     this.path = path;
     this.def = def;
     this.line = computeRacingLine(path);
@@ -593,6 +571,7 @@ class Game {
     // kept out of `this.cars`, so lap counting, the standings and the results table never
     // see it - the only thing that crosses back is a count of coins.
     this.caravan = this.settings.caravans ? new Caravan(this.raceScene, path, this.world) : null;
+    this.tyreFx = new TyreEffects(this.raceScene, this.world);
     this.ui.coinsVisible(!!this.caravan);
 
     this.ui.prepMinimap(path);
@@ -655,6 +634,7 @@ class Game {
 
   endRace(clear) {
     if (this.caravan) { this.caravan.dispose(); this.caravan = null; }
+    if (this.tyreFx) { this.tyreFx.dispose(); this.tyreFx = null; }
     if (this.world) { this.world.dispose(); this.world = null; }
     if (this.raceScene) {
       this.raceScene.traverse((o) => {
@@ -1025,7 +1005,7 @@ class Game {
     this.input.update(dt);
 
     if (this.state === 'paused') {
-      this.renderer.render(this.raceScene, this.camera);
+      this.post.render(this.raceScene, this.camera);
       return;
     }
 
@@ -1039,12 +1019,13 @@ class Game {
       this.camera.lookAt(0, 0.72, 0);
       this.showFill.position.copy(this.camera.position);
       if (this.showCar) this.showCar.rotation.y = 0;
-      this.renderer.render(this.showroom, this.camera);
+      this.post.render(this.showroom, this.camera);
       return;
     }
 
     this.updateRace(dt);
     this.updateCamera(dt);
+    this.tyreFx.update(dt, this.cars, this.camera, this.renderer.domElement.height);
     this.updateHud();
     this.world.update(dt, this.elapsed);
     this.world.updateShadow(this.camLook);
@@ -1053,12 +1034,13 @@ class Game {
       speed: p.speed, vTop: p.spec.vTop, throttle: this.input.state.throttle,
       slide: p.slide, rumble: p.rumble, boosting: p.boosting,
     });
-    this.renderer.render(this.raceScene, this.camera);
+    this.post.render(this.raceScene, this.camera);
   }
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
