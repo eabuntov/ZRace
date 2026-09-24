@@ -63,24 +63,14 @@ function isPaint(mat, spec) {
 // them. The clones are marked so the colour can be changed again later without reloading.
 function repaint(root, spec, paint) {
   const clones = new Map();
-  // A scan with nothing that reads as a paint material, but one colour map covering the
-  // whole car, is repainted through that map instead - see tintAtlas. `spec.paintAtlas`
-  // opts a car in, because it only works where the bodywork is the one near-white thing
-  // in the texture, and that is a fact about the asset rather than something to guess at.
-  const atlas = spec.paintAtlas && !collectPaintMats(root, spec).length;
   root.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     const many = Array.isArray(o.material);
     const mats = (many ? o.material : [o.material]).map((m) => {
-      if (!atlas && !isPaint(m, spec)) return m;
-      if (atlas && !(m.map && m.map.image)) return m;
+      if (!isPaint(m, spec)) return m;
       if (!clones.has(m)) {
         const c = m.clone();
         c.userData = { ...c.userData, zracePaint: true };
-        if (atlas) {
-          c.userData.zraceAtlas = m.map;
-          c.userData.zraceKeepOut = spec.paintAtlas.keepOut || [];
-        }
         clones.set(m, c);
       }
       return clones.get(m);
@@ -91,22 +81,12 @@ function repaint(root, spec, paint) {
   return clones.size;
 }
 
-function collectPaintMats(root, spec) {
-  const found = [];
-  root.traverse((o) => {
-    if (!o.isMesh || !o.material) return;
-    for (const m of [].concat(o.material)) if (isPaint(m, spec)) found.push(m);
-  });
-  return found;
-}
-
 function applyPaint(root, paint) {
   let n = 0;
   root.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     for (const m of [].concat(o.material)) {
       if (!m.userData || !m.userData.zracePaint) continue;
-      if (m.userData.zraceAtlas) { tintAtlas(m, paint); n++; continue; }
       m.color.set(paint.hex);
       m.metalness = paint.matte ? 0.2 : 0.6;
       m.roughness = paint.matte ? 0.55 : 0.18;
@@ -117,69 +97,8 @@ function applyPaint(root, paint) {
   return n;
 }
 
-// Some scans are a single mesh wearing a single material, with the whole car - glass,
-// tyres, lights and all - baked into one colour map. The Monjaro is one, and there is no
-// material to tint that would not tint the windows with it. What there is, is a body
-// painted white in that map: so the paint goes on texel by texel, over the bright and
-// colourless pixels only. Tyres, glass and dark trim are far too dark to catch it and the
-// lights are far too saturated. Polished alloys are the one thing that is as bright and
-// as grey as white bodywork, and no rule about colour can separate them - so where they
-// sit in the atlas is named by `keepOut` instead, in the spec, beside the model it
-// describes. Boxes are [u0, v0, u1, v1] in image space, y down from the top left.
-const BODY_MIN_LUMA = 0.62;
-const BODY_MAX_SAT = 0.12;
-
-function tintAtlas(mat, paint) {
-  const src = mat.userData.zraceAtlas;          // the untouched original image
-  const keepOut = mat.userData.zraceKeepOut || [];
-  const img = src.image;
-  const w = img.width, h = img.height;
-  const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, w, h);
-  const px = data.data;
-  const pr = parseInt(paint.hex.slice(1, 3), 16) / 255;
-  const pg = parseInt(paint.hex.slice(3, 5), 16) / 255;
-  const pb = parseInt(paint.hex.slice(5, 7), 16) / 255;
-  const boxes = keepOut.map(([u0, v0, u1, v1]) =>
-    [Math.floor(u0 * w), Math.floor(v0 * h), Math.ceil(u1 * w), Math.ceil(v1 * h)]);
-  for (let y = 0; y < h; y++) {
-    let masked = false;
-    for (const b of boxes) if (y >= b[1] && y < b[3]) { masked = true; break; }
-    for (let x = 0; x < w; x++) {
-      if (masked) {
-        let skip = false;
-        for (const b of boxes) if (x >= b[0] && x < b[2] && y >= b[1] && y < b[3]) { skip = true; break; }
-        if (skip) continue;
-      }
-      const i = (y * w + x) * 4;
-      const r = px[i] / 255, g = px[i + 1] / 255, bl = px[i + 2] / 255;
-      const max = Math.max(r, g, bl), min = Math.min(r, g, bl);
-      if (max < BODY_MIN_LUMA || max - min > BODY_MAX_SAT) continue;
-      // Keep the shading that is baked in and carry the hue over it, so panel gaps,
-      // dirt and the soft shadow under the arches all survive the respray.
-      px[i] = Math.min(255, max * pr * 255 * 1.08);
-      px[i + 1] = Math.min(255, max * pg * 255 * 1.08);
-      px[i + 2] = Math.min(255, max * pb * 255 * 1.08);
-    }
-  }
-  ctx.putImageData(data, 0, 0);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.flipY = src.flipY;
-  tex.colorSpace = src.colorSpace;
-  tex.wrapS = src.wrapS; tex.wrapT = src.wrapT;
-  if (mat.map && mat.map.isCanvasTexture) mat.map.dispose();
-  mat.map = tex;
-  mat.color.set('#ffffff');
-  mat.needsUpdate = true;
-}
-
 // Recolour a car already standing on the turntable. Returns how many materials changed, so
-// a caller can tell the difference between "done" and "this scan has no separable paint" -
-// the Monjaro is one mesh with one material covering glass and wheels as well as bodywork,
-// and tinting that would tint the whole car.
+// a caller can tell the difference between "done" and "this scan has no separable paint".
 export function repaintShowroomCar(root, paintHex) {
   const paint = PAINTS.find((p) => p.hex === paintHex) || PAINTS[0];
   return applyPaint(root, paint);

@@ -210,12 +210,9 @@ export const CARS = [
       [-2.38, 1.250, 1.120, 0.75, 0.95],   // tailgate, shoulders drawn in
     ],
     style: { cladding: true, front: 'split', chrome: true, flare: 0.02 },
-    // One mesh, one material, the whole car baked into a single colour map - so the paint
-    // is carried by that map rather than by a material of its own. See tintAtlas(). The
-    // box is where the four polished alloys sit in that map: they are as bright and as
-    // colourless as the white bodywork, so nothing but their address tells them apart.
+    // Converted from a SketchUp model by tools/dae_to_glb.py, which is what names its
+    // paint, glass, tail lamps and the four wheels the rig turns.
     model: 'assets/cars/geely_monjaro.glb',
-    paintAtlas: { keepOut: [[0, 0.75, 0.47, 0.89]] },
     paint: 1,
   },
   {

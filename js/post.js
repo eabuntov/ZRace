@@ -15,7 +15,12 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 // Bloom picks on the brightest channel rather than on luminance. Luminance barely
 // counts red, so a brake light at four times white scored lower than a white roof in the
 // sun, and there was no threshold that lit one without the other.
-const BRIGHTEST = 'float v = max( max( texel.r, texel.g ), texel.b );';
+//
+// And what it picks is capped. A clearcoat is a near-mirror, so a spotlight caught in one is
+// a highlight a few pixels across at over a thousand times white, and blurred out that
+// much light became a glare the size of the car. Capped, it still glows as a highlight
+// should; the pixels themselves keep their full value and are only tone mapped.
+const BRIGHTEST = 'texel.rgb = min( texel.rgb, vec3( 3.0 ) ); float v = max( max( texel.r, texel.g ), texel.b );';
 
 export class PostFX {
   constructor(renderer) {

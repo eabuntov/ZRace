@@ -212,9 +212,7 @@ Picking a paint recolours the car where it stands, in a fraction of a millisecon
 colour is one material away and the scan never reloads. Which material carries the paint is
 up to whoever built the model (`car_paint_bai`, `Car_Paint`, `CarPaint`, or just `body`), so
 it is matched by name, with `spec.paintMat` to name it outright where the name gives nothing
-away. The Geely Monjaro is the exception: it arrived as a single mesh with one material
-covering glass and wheels as well as bodywork, so it cannot be repainted without tinting the
-whole car, and the chips leave it alone.
+away.
 
 On track the player's car races its scan too, where the model allows it; the opponents stay
 code-built, which is what keeps the cost down. A six-car Monza grid goes from 304 draw calls
@@ -231,10 +229,19 @@ and a merged wheel cannot be turned without turning the other three with it. So 
 cuts them apart first: each triangle of a wheel mesh that spans more than one corner goes to
 the corner its centroid falls in, and each corner gets its own index buffer pointing into
 the same vertex arrays. No vertex data is copied, so a car's worth of splitting costs a few
-kilobytes. Nine of the ten pass now, with every wheelbase landing within 30 mm of the real
-car's. The Geely Monjaro is the one that does not: it is a single mesh for the entire car,
-so there is nothing to cut that would not cut the bodywork with it, and it races the
-code-built car and says so in the console.
+kilobytes. All ten pass, with every wheelbase landing within 30 mm of the real car's.
+
+The Geely Monjaro comes from SketchUp rather than Sketchfab, and `tools/dae_to_glb.py` turns
+its Collada export into something the rest of the build can take. SketchUp writes every face
+twice, once per side, and names nothing - parts are `group_0`, materials `Color_M01` - so the
+converter drops the back faces, finds the four wheels as the wheel-sized groups at the
+corners, and names the paint, glass, tail lamps and wheels from their colour and position.
+It needs pycollada:
+
+```bash
+python tools/dae_to_glb.py models/GEELY+MONJARO+2024.zip models/geely_monjaro_2024.glb
+python tools/prepare_models.py geely_monjaro
+```
 
 Glass is the other thing that made this affordable. Most of these models tint their windows
 with `KHR_materials_transmission`, and three.js pays for that by drawing the whole scene a
@@ -289,6 +296,7 @@ js/lang/*.js        one translation catalogue per language (en is the source and
 server/scores.py    optional global record board: SQLite behind /api/ (no dependencies)
 server/floors.json  fastest physically possible lap per car per circuit, for validation
 js/textures.js      every texture, painted into a canvas at run time
+tools/dae_to_glb.py  SketchUp Collada export -> GLB with named parts, for prepare_models.py
 tools/cars.html     dev page: model sheet (?view=side | front | rear, ?only=<id>)
 tools/lap_floors.mjs generates server/floors.json from the cars and circuits
 ```

@@ -59,7 +59,9 @@ MODELS = {
                        ['lights_brakes.003', 'lights_position_back.003',
                         'lights_position_front_and_back.003', 'lights_reverse.001',
                         'chassis_licenseplate'], (), 1.0, 1024),
-    'geely_monjaro':  ('geely.glb', [], (), 0.7, 1024),
+    # From SketchUp by way of tools/dae_to_glb.py, which names the parts and drops the
+    # back faces. Most of what is left is the cabin, seen only through dark glass.
+    'geely_monjaro':  ('geely_monjaro_2024.glb', [], (), 0.25, 1024),
     'chery_tiggo8':   ('2022_chery_tiggo_8_pro_e.glb', [], INTERIOR, 0.4, 1024),
     'haval_big_dog':  ('haval_ii_big_dog_2024.glb', [], INTERIOR, 0.45, 1024),
     'xiaomi_su7':     ('2025_xiaomi_su7_ultra_production_version.glb', [], INTERIOR, 0.4, 1024),
@@ -76,8 +78,7 @@ WHEEL_FIX = {
 }
 
 # The X's wheels are already four separate corners once repair_wheels has copied them,
-# and the Monjaro is one mesh for the entire car, where a split would cut the bodywork up
-# along with everything else.
+# and dae_to_glb.py hands the Monjaro over with its wheels already one mesh per corner.
 NO_SPLIT = {'zeekr_x', 'geely_monjaro'}
 
 JSON_CHUNK, BIN_CHUNK = 0x4E4F534A, 0x004E4942
