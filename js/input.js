@@ -20,10 +20,14 @@ export class Input {
     this.actions = new Map();
     this.enabled = true;
 
+    // A focused menu control keeps its own keys: Space presses a button and arrows move
+    // through a list. The driving keys are still recorded - nothing reads them in a menu
+    // - but only the page itself, with nothing focused, has their defaults suppressed.
+    const inControl = (e) => e.target instanceof Element && !!e.target.closest('button, input, select, textarea');
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = KEYMAP[e.code];
-      if (k) { this.keys.add(k); e.preventDefault(); }
+      if (k) { this.keys.add(k); if (!inControl(e)) e.preventDefault(); }
       const cb = this.actions.get(e.code);
       if (cb) { cb(); e.preventDefault(); }
     });

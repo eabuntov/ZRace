@@ -370,6 +370,73 @@ export function puffTexture() {
   });
 }
 
+// Braking distance boards, 150 / 100 / 50, side by side in one texture: a white board
+// with a heavy number, and one to three diagonal bars in the circuit's colour so the count
+// reads even when the digits are still too small to make out.
+export function brakeBoardTexture(accent = '#37e0a6') {
+  return cached('boards' + accent, () => {
+    const c = canvas(384, 128), ctx = c.getContext('2d');
+    ['150', '100', '50'].forEach((label, k) => {
+      const x = k * 128;
+      ctx.fillStyle = '#f4f6f8';
+      ctx.fillRect(x, 0, 128, 128);
+      ctx.strokeStyle = '#12161d';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(x + 4, 4, 120, 120);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 8, 8, 112, 36);
+      ctx.clip();
+      ctx.fillStyle = accent;
+      for (let b = 0; b < 3 - k; b++) {
+        ctx.beginPath();
+        const bx = x + 18 + b * 34;
+        ctx.moveTo(bx, 44); ctx.lineTo(bx + 18, 8); ctx.lineTo(bx + 34, 8); ctx.lineTo(bx + 16, 44);
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.fillStyle = '#12161d';
+      ctx.font = 'bold 64px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + 64, 86);
+    });
+    const t = toTexture(c, 1, 1);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+  });
+}
+
+// The light sweeping round the showroom floor: one bright wedge fading off behind it,
+// and nothing over the turntable itself. Laid down additively and turned slowly.
+export function sweepTexture() {
+  return cached('sweep', () => {
+    const c = canvas(256, 256), ctx = c.getContext('2d');
+    if (ctx.createConicGradient) {
+      const g = ctx.createConicGradient(0, 128, 128);
+      g.addColorStop(0, 'rgba(255,255,255,0.0)');
+      g.addColorStop(0.02, 'rgba(255,255,255,0.9)');
+      g.addColorStop(0.2, 'rgba(255,255,255,0.12)');
+      g.addColorStop(0.3, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 256, 256);
+    }
+    // a ring: clear over the turntable, brightest just outside its rim, gone at the edge
+    const r = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    r.addColorStop(0, 'rgba(0,0,0,0)');
+    r.addColorStop(0.5, 'rgba(0,0,0,0)');
+    r.addColorStop(0.58, 'rgba(0,0,0,1)');
+    r.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = r;
+    ctx.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
 // Soft round shadow blob placed under each car.
 export function shadowTexture() {
   return cached('shadow', () => {

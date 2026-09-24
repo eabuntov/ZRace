@@ -6,9 +6,11 @@ import { TrackWorld } from './trackBuild.js';
 import { CARS, PAINTS, buildCar, animateCar, addBoostJet } from './cars.js';
 import { loadShowroomCar, repaintShowroomCar } from './carModel.js';
 import { rigScan } from './carRig.js';
+import { attachPlate, setPlateText } from './plate.js';
 import { Vehicle, resolveCollisions } from './physics.js';
 import { Caravan } from './caravan.js';
 import { AIDriver, computeRacingLine, driverName } from './ai.js';
+import { DrivingCoach } from './cues.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { UI, formatTime } from './ui.js';
@@ -16,7 +18,7 @@ import { PostFX } from './post.js';
 import { TyreEffects } from './effects.js';
 import * as Records from './records.js';
 import { t, num, setLanguage } from './i18n.js';
-import { setMaxAnisotropy, shadowTexture, glowTexture, studioFloorTexture } from './textures.js';
+import { setMaxAnisotropy, shadowTexture, glowTexture, studioFloorTexture, sweepTexture } from './textures.js';
 
 const DIFF = {
   easy: { skill: 0.86, rubber: 0.022 },
@@ -29,6 +31,21 @@ const CAM_MODES = [
   { name: 'close', back: 5.0, up: 2.2, ahead: 6, lookUp: 0.8, fov: 66 },
   { name: 'bonnet', bonnet: true, fov: 72 },
 ];
+
+// The visual quality ladder. PERFORMANCE and QUALITY pick a rung outright; AUTO starts on
+// the middle one and moves a rung at a time, between races or in the pause menu, on the
+// evidence of frame times measured while racing - never mid-race, and never up merely
+// because the screen reports a high pixel density.
+const TIERS = [
+  // performance: fewer pixels, no bloom, thinner scenery, and the built car if the scan is slow
+  { dpr: 1.25, glow: false, rivals: false, detail: 0.55, shadow: 1024, scanWait: 6 },
+  // balanced: the conservative start for AUTO
+  { dpr: 1.5, glow: true, rivals: true, detail: 1, shadow: 2048, scanWait: Infinity },
+  // quality: today's full picture
+  { dpr: 2, glow: true, rivals: true, detail: 1, shadow: 2048, scanWait: Infinity },
+];
+const SLOW_FRAME = 1 / 45;       // AUTO steps down if one frame in ten is slower than this
+const FAST_FRAME = 1 / 56;       // and up if nine in ten are quicker than this
 
 const STORE = 'zeekrcircuit.v1';
 
@@ -45,7 +62,6 @@ class Game {
   constructor() {
     this.canvas = document.getElementById('view');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -58,11 +74,23 @@ class Game {
 
     this.settings = Object.assign(
       { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
-        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, glow: false, scans: false, coins: 0 },
+        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, glow: false, scans: true, coins: 0,
+        cues: true, quality: 'auto', autoTier: 1, autoCeiling: 2, camMode: 0, hintSeen: false },
       this.load()
     );
     this.best = this.settings.best || {};
-    this.post.enabled = !!this.settings.glow;
+    // Every rival now races in its scanned model by default. Settings are saved whole, so
+    // anyone who has played before has the old default stored as a choice; move them over
+    // once, and from then on OFF is a choice that sticks.
+    if (!this.settings.scansDefaultOn) {
+      this.settings.scans = true;
+      this.settings.scansDefaultOn = true;
+    }
+    // frame times while racing, for AUTO quality; see reviewQuality()
+    this.frameTimes = new Float32Array(1200);
+    this.frameCount = 0;
+    this.frameSkip = 0;
+    this.applyQuality();
     this.records = Records.load();
     this.recordTrack = this.settings.trackIndex;
     this.recordScope = 'global';
@@ -89,6 +117,7 @@ class Game {
     // Somebody who has asked their system not to animate things at them should not be
     // handed a shaking camera the moment they put two wheels on the grass.
     this.calmCamera = matchMedia('(prefers-reduced-motion: reduce)');
+    this.touch = matchMedia('(pointer: coarse)').matches;
 
     this.tracks = TRACKS.map((def) => ({ def, path: new TrackPath(def) }));
 
@@ -110,12 +139,15 @@ class Game {
       onStart: () => this.startRace(),
       onResume: () => this.resume(),
       onRestart: () => this.startRace(),
+      onHintDone: () => this.dismissHint(),
     });
+    this.ui.keyboard = !this.touch;
 
     this.buildShowroom();
     this.ui.buildCars(CARS, PAINTS, this.settings);
     this.ui.buildTracks(this.tracks, this.settings);
-    this.ui.buildOptions(this.settings);
+    this.ui.buildOptions(this.settings, this.tier());
+    this.refreshSetup();
     this.ui.buildLanguages(this.settings.lang);
     this.ui.setName(this.settings.name);
     this.ui.setCoins(this.settings.coins || 0);
@@ -124,7 +156,7 @@ class Game {
     this.bindKeys();
     window.addEventListener('resize', () => this.resize());
     this.resize();
-    if (matchMedia('(pointer: coarse)').matches) {
+    if (this.touch) {
       document.getElementById('touch').classList.remove('hidden');
       this.input.bindTouchControls(document.getElementById('touch'));
     }
@@ -144,6 +176,51 @@ class Game {
     try {
       localStorage.setItem(STORE, JSON.stringify({ ...this.settings, best: this.best }));
     } catch { /* private mode */ }
+  }
+
+  // ------------------------------------------------------------ quality
+  tier() {
+    const q = this.settings.quality;
+    if (q === 'performance') return 0;
+    if (q === 'quality') return 2;
+    return Math.max(0, Math.min(2, this.settings.autoTier ?? 1));
+  }
+
+  // What can change without rebuilding anything: pixel ratio and bloom. Scenery density,
+  // the shadow map and the rivals' models are read when the next race is built.
+  applyQuality() {
+    const q = TIERS[this.tier()];
+    const dpr = Math.min(window.devicePixelRatio || 1, q.dpr);
+    if (this.renderer.getPixelRatio() !== dpr) {
+      this.renderer.setPixelRatio(dpr);
+      if (this.camera) this.resize();
+    }
+    this.post.enabled = !!this.settings.glow && q.glow;
+  }
+
+  // AUTO's one decision, taken at a pause or between races from what the last stretch of
+  // racing measured. A rung that proved too slow becomes the ceiling, so a machine does
+  // not climb back onto it race after race.
+  reviewQuality() {
+    const n = this.frameCount;
+    this.frameCount = 0;
+    if (this.settings.quality !== 'auto' || n < 240) return;
+    const s = Array.from(this.frameTimes.subarray(0, Math.min(n, this.frameTimes.length))).sort((a, b) => a - b);
+    const p90 = s[Math.floor(s.length * 0.9)];
+    const was = this.tier();
+    let tier = was;
+    if (p90 > SLOW_FRAME && tier > 0) {
+      tier--;
+      this.settings.autoCeiling = tier;
+    } else if (p90 < FAST_FRAME && tier < Math.min(2, this.settings.autoCeiling ?? 2)) {
+      tier++;
+    }
+    console.info(`[zrace] auto quality: p90 frame ${(p90 * 1000).toFixed(1)} ms over ${s.length} frames, tier ${was} -> ${tier}`);
+    if (tier === was) return;
+    this.settings.autoTier = tier;
+    this.applyQuality();
+    this.ui.buildOptions(this.settings, this.tier());
+    this.save();
   }
 
   // ------------------------------------------------------------- showroom
@@ -308,6 +385,19 @@ class Game {
     ring.position.y = 0.01;
     s.add(ring);
 
+    // A light sweeping slowly round the floor outside the turntable - the one moving thing
+    // in the room besides the camera. Left out for anyone who has asked for less motion.
+    this.sweep = new THREE.Mesh(
+      new THREE.CircleGeometry(7.4, 64),
+      new THREE.MeshBasicMaterial({
+        map: sweepTexture(), color: '#9ff5d6', transparent: true, opacity: 0.4,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    this.sweep.rotation.x = -Math.PI / 2;
+    this.sweep.position.y = 0.012;
+    s.add(this.sweep);
+
     this.addStudioStrips(s);
     this.addProjectors(s);
 
@@ -348,8 +438,11 @@ class Game {
     if (!this.showCar) return;
     this.showroom.remove(this.showCar);
     if (!this.showCar.userData.shared) {
-      this.showCar.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+      this.showCar.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
     }
+    // the showroom plate has a texture of its own, redrawn as the name is typed
+    const plate = this.showCar.userData.plate;
+    if (plate && plate.own) { plate.mesh.material.map.dispose(); plate.mesh.material.dispose(); }
     this.showCar = null;
   }
 
@@ -363,6 +456,7 @@ class Game {
         return;
       }
       this.dropShowroomCar();
+      attachPlate(car, spec, this.plateName(), { own: true });
       this.showCar = car;
       this.showroom.add(car);
     };
@@ -384,6 +478,7 @@ class Game {
       // which case the race behind it has to be torn down, or its scene goes on rendering
       // (and its cars go on driving) underneath the menu.
       if (this.state !== 'menu') this.endRace(true);
+      this.refreshSetup();
       this.ui.show('track');
     } else if (target === 'controls') {
       this.ui.show('controls');
@@ -437,7 +532,8 @@ class Game {
     await setLanguage(code === 'auto' ? null : code);
     this.ui.buildCars(CARS, PAINTS, this.settings);
     this.ui.buildTracks(this.tracks, this.settings);
-    this.ui.buildOptions(this.settings);
+    this.ui.buildOptions(this.settings, this.tier());
+    this.refreshSetup();
     this.ui.buildLanguages(this.settings.lang);
     if (this.ui.current === 'records') this.showRecords();
     this.save();
@@ -445,7 +541,13 @@ class Game {
 
   setName(v) {
     this.settings.name = Records.cleanName(v);
+    setPlateText(this.showCar, this.plateName());
     this.save();
+  }
+
+  // What the back of the player's car says: the driver's name, as the records know it.
+  plateName() {
+    return Records.cleanName(this.settings.name) || Records.DEFAULT_NAME;
   }
 
   pickCar(i) {
@@ -475,28 +577,51 @@ class Game {
   pickTrack(i) {
     this.settings.trackIndex = i;
     this.ui.selectTrack(i);
+    this.refreshSetup();
     this.audio.click();
     this.save();
   }
 
+  // The setup panel beside the circuit cards: the chosen circuit, the race as set up, and
+  // this driver's best lap there.
+  refreshSetup() {
+    const track = this.tracks[this.settings.trackIndex];
+    const best = this.best[track.def.id];
+    this.ui.updateSetup(track, this.settings, best != null ? best * 1000 : null);
+  }
+
   setOption(k, v) {
     this.settings[k] = v;
-    if (k === 'glow') this.post.enabled = !!v;
-    this.ui.buildOptions(this.settings);
+    // choosing AUTO again is a fresh start: forget the ceiling an earlier slow run set
+    if (k === 'quality' && v === 'auto') this.settings.autoCeiling = 2;
+    if (k === 'glow' || k === 'quality') this.applyQuality();
+    this.ui.buildOptions(this.settings, this.tier());
+    this.refreshSetup();
     this.save();
   }
 
   bindKeys() {
-    this.input.on('KeyC', () => { if (this.state === 'racing' || this.state === 'finished') this.camMode = (this.camMode + 1) % CAM_MODES.length; });
+    // The view is named as it changes, and remembered for the next race.
+    this.input.on('KeyC', () => {
+      if (this.state !== 'racing' && this.state !== 'finished' && this.state !== 'countdown') return;
+      this.camMode = (this.camMode + 1) % CAM_MODES.length;
+      this.settings.camMode = this.camMode;
+      this.ui.toast(t(`cam.${CAM_MODES[this.camMode].name}`), 'good', 1500);
+      this.save();
+    });
     // Rejoining is rate-limited: a rejoin is a teleport, and holding R down a dozen times
     // a second is not something any circuit should have to answer for.
     this.input.on('KeyR', () => {
       if (this.state !== 'racing' || !this.player) return;
-      if (this.raceTime - this.lastRespawn < 1.5) return;
+      if (this.raceTime - this.lastRespawn < 1.5) {
+        this.ui.toast(t('msg.rejoinWait'), 'warn', 900);
+        return;
+      }
       this.lastRespawn = this.raceTime;
       this.player.respawn();
+      this.ui.toast(t('msg.rejoined'), 'good', 1100);
     });
-    this.input.on('KeyM', () => { this.audio.setMuted(!this.audio.muted); this.ui.message(t(this.audio.muted ? 'msg.muted' : 'msg.soundOn'), '', 900); });
+    this.input.on('KeyM', () => { this.audio.setMuted(!this.audio.muted); this.ui.toast(t(this.audio.muted ? 'msg.muted' : 'msg.soundOn'), '', 1000); });
     const pause = () => {
       if (this.state === 'racing' || this.state === 'countdown') this.pause();
       else if (this.state === 'paused') this.resume();
@@ -518,12 +643,14 @@ class Game {
   buildRace() {
     const t0 = performance.now();
     const { def, path } = this.tracks[this.settings.trackIndex];
+    const q = TIERS[this.tier()];
     this.raceScene = new THREE.Scene();
-    this.world = new TrackWorld(this.raceScene, path, def);
+    // the line first: the road is rubbered in along it, and the braking boards go where it slows
+    this.line = computeRacingLine(path);
+    this.world = new TrackWorld(this.raceScene, path, def, { line: this.line, detail: q.detail, shadowSize: q.shadow });
     this.raceScene.environment = this.world.environment(this.pmrem);
     this.path = path;
     this.def = def;
-    this.line = computeRacingLine(path);
 
     const diff = DIFF[this.settings.difficulty];
     const n = this.settings.opponents + 1;
@@ -553,9 +680,12 @@ class Game {
       v.code = isPlayer ? Records.driverCode(this.settings.name) : code;
       v.driver = isPlayer ? Records.cleanName(this.settings.name) : name;
       v.mesh = buildCar(spec, paint, { number: isPlayer ? 1 : i + 2 });
+      // the player's plate carries their name; a rival's, its timing code and number
+      v.plate = isPlayer ? this.plateName() : `${code} ${String(i + 2).padStart(2, '0')}`;
+      attachPlate(v.mesh, spec, v.plate);
       v.mesh.rotation.order = 'YXZ';
       this.raceScene.add(v.mesh);
-      if (isPlayer || this.settings.scans) this.raceScan(v, paint);
+      if (isPlayer || (this.settings.scans && q.rivals)) this.raceScan(v, paint, q.scanWait);
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(spec.dims.L * 1.25, spec.dims.W * 2.0), shadowMat);
       sh.rotation.x = -Math.PI / 2;
       this.raceScene.add(sh);
@@ -568,6 +698,7 @@ class Game {
     }
     this.player = this.cars[this.cars.length - 1];
     if (this.autopilot) this.player.ai = new AIDriver(this.player, path, this.line, { skill: 0.95 });
+    this.coach = new DrivingCoach(path, this.line, this.player);
 
     // Опционально, по многочисленным просьбам. The caravan is built after the cars and
     // kept out of `this.cars`, so lap counting, the standings and the results table never
@@ -582,8 +713,12 @@ class Game {
     this.lightCount = 0;
     this.goDelay = 0;
     this.state = 'countdown';
-    this.camMode = 0;
+    this.camMode = Math.min(CAM_MODES.length - 1, Math.max(0, this.settings.camMode | 0));
     this.wrongWay = 0;
+    this.boostHeld = false;
+    this.frameCount = 0;
+    this.frameSkip = 90;                         // the first second and a half is loading hitches
+    this.ui.resetHud();
     this.finishTimer = 0;
     this.resultsShown = false;
     this.lastRespawn = -99;
@@ -602,6 +737,13 @@ class Game {
     this.input.clear();
     this.audio.start();
     document.body.classList.add('racing');
+    this.ui.startHint(t('hud.startHint', { key: this.touch ? t('touch.go') : 'W' }), false);
+    // Once, on a driver's first race: the handful of controls that matter, for four seconds.
+    if (!this.settings.hintSeen) {
+      this.ui.showHint(this.touch);
+      clearTimeout(this.hintTimer);
+      this.hintTimer = setTimeout(() => this.dismissHint(), 4000);
+    }
 
     const f = path.sampleAt(path.wrapS(-9 - (n - 1) * 8.5));
     this.camPos.set(f.x - f.tx * 9, f.y + 3.4, f.z - f.tz * 9);
@@ -615,16 +757,27 @@ class Game {
   // has to be rigged first - a scanned body on wheels that do not turn is worse than a
   // simpler car that behaves - and if that fails the built car simply stays where it is.
   // It arrives whenever the model has downloaded, so the car swaps over mid-race if needs be.
-  raceScan(v, paintHex) {
+  //
+  // `wait` is how many seconds the swap is still welcome. In Performance mode a scan that
+  // takes longer than that to arrive is left unused and the built car races on: swapping a
+  // dozen megabytes of model into a machine already short of headroom, mid-race, is a
+  // stutter that nobody asked for.
+  raceScan(v, paintHex, wait = Infinity) {
     const race = this.raceId;
+    const asked = performance.now();
     loadShowroomCar(v.spec, paintHex).then((scan) => {
       if (!scan || race !== this.raceId || !this.cars || !this.cars.includes(v)) return;
+      if (performance.now() - asked > wait * 1000) {
+        console.info(`[zrace] ${v.spec.name}: scan arrived late, keeping the built car`);
+        return;
+      }
       const rig = rigScan(scan, v.spec);
       if (!rig) {
         console.info(`[zrace] ${v.spec.name}: scan has no separable wheels, racing the built car`);
         return;
       }
       scan.userData = { ...scan.userData, ...rig };
+      attachPlate(scan, v.spec, v.plate);         // before the jet, so the tail is found clean
       addBoostJet(scan, v.spec);
       scan.rotation.order = 'YXZ';
       scan.position.copy(v.mesh.position);
@@ -637,6 +790,10 @@ class Game {
   }
 
   endRace(clear) {
+    if (this.world) this.reviewQuality();
+    this.coach = null;
+    this.ui.hideHint();
+    clearTimeout(this.hintTimer);
     if (this.caravan) { this.caravan.dispose(); this.caravan = null; }
     if (this.tyreFx) { this.tyreFx.dispose(); this.tyreFx = null; }
     if (this.world) { this.world.dispose(); this.world = null; }
@@ -664,6 +821,8 @@ class Game {
     this.input.enabled = false;
     this.audio.stop();
     document.body.classList.remove('racing');
+    // a pause is one of the two moments AUTO may change the picture
+    this.reviewQuality();
     this.ui.show('pause');
   }
 
@@ -676,6 +835,15 @@ class Game {
     this.audio.start();
     document.body.classList.add('racing');
     this.ui.show(null);
+    this.frameSkip = 30;
+    this.ui.toast(t('msg.resumed'), 'good', 900);
+  }
+
+  dismissHint() {
+    clearTimeout(this.hintTimer);
+    this.ui.hideHint();
+    takeKeyboard();
+    if (!this.settings.hintSeen) { this.settings.hintSeen = true; this.save(); }
   }
 
   // --------------------------------------------------------------- systems
@@ -684,6 +852,10 @@ class Game {
     const diff = DIFF[this.settings.difficulty];
 
     if (this.state === 'countdown') {
+      // the start line says whether the throttle is being held, so the driver knows the
+      // launch is armed before the lights go out
+      this.ui.startHint(t(this.input.state.throttle > 0.5 ? 'hud.startReady' : 'hud.startHint',
+        { key: this.touch ? t('touch.go') : 'W' }), this.input.state.throttle > 0.5);
       this.countdown -= dt;
       if (this.countdown <= 0) {
         if (this.lightCount < 5) {
@@ -781,6 +953,14 @@ class Game {
         if (this.wrongWay > 0.5) this.ui.message(t('msg.wrongWay'), 'red', 400);
       } else this.wrongWay = 0;
       if (p.impact > 4) this.audio.hit(p.impact);
+      // Boost asked for with too little in the tank does nothing, and says so.
+      const wantBoost = !!this.input.state.boost;
+      if (wantBoost && !this.boostHeld && !p.boosting && p.boostCharge < 0.25 && !p.ai) {
+        this.ui.denyBoost();
+        this.ui.toast(t('msg.boostEmpty'), 'warn', 1100);
+      }
+      this.boostHeld = wantBoost;
+      if (this.coach && this.state === 'racing') this.coach.update(dt, this.raceTime);
     }
 
     // the caravan, and whatever the player relieved it of
@@ -990,7 +1170,18 @@ class Game {
       last: p.race.laps.length ? p.race.laps[p.race.laps.length - 1] * 1000 : null,
       best: p.race.best != null ? p.race.best * 1000 : (this.best[this.def.id] != null ? this.best[this.def.id] * 1000 : null),
     });
-    this.ui.drawMinimap(this.cars, this.cars.indexOf(p));
+    // the minimap's extras: the next corner, and whichever rival is nearest on the road
+    let rival = -1, gap = Infinity;
+    const L = this.path.length;
+    this.cars.forEach((c, i) => {
+      if (c === p) return;
+      let d = Math.abs(c.dist - p.dist) % L;
+      d = Math.min(d, L - d);
+      if (d < gap) { gap = d; rival = i; }
+    });
+    const next = this.coach && this.coach.nextCorner(p.proj.i);
+    this.ui.drawMinimap(this.cars, this.cars.indexOf(p), { apex: next ? next.apex : null, rival: gap < 400 ? rival : -1 });
+    this.ui.drawCue(this.state === 'racing' && this.coach ? this.coach.state : null, this.settings.cues !== false);
     if (this.order) {
       const leader = this.order[0];
       this.ui.updateTower(this.order.slice(0, 8).map((c) => ({
@@ -1004,9 +1195,16 @@ class Game {
 
   // ------------------------------------------------------------------ loop
   frame() {
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const raw = this.clock.getDelta();
+    const dt = Math.min(0.05, raw);
     this.elapsed += dt;
     this.input.update(dt);
+    // Frame times for AUTO quality: only while racing, only while the page is on screen,
+    // and not the first moments after a start or a resume.
+    if (this.state === 'racing' && !document.hidden) {
+      if (this.frameSkip > 0) this.frameSkip--;
+      else this.frameTimes[this.frameCount++ % this.frameTimes.length] = raw;
+    }
 
     if (this.state === 'paused') {
       this.post.render(this.raceScene, this.camera);
@@ -1014,19 +1212,27 @@ class Game {
     }
 
     if (this.state === 'menu') {
-      this.showAngle += dt * 0.16;
+      // the orbit and the floor sweep are decoration; they stand still for reduced motion
+      const calm = this.calmCamera.matches;
+      if (!calm) this.showAngle += dt * 0.16;
+      this.sweep.visible = !calm;
+      this.sweep.rotation.z -= dt * 0.35;
       const L = CARS[this.settings.carIndex].dims.L;
       const r = 6.6 + L * 1.15, h = 2.5;
       this.camera.fov += (40 - this.camera.fov) * Math.min(1, dt * 4);
       this.camera.updateProjectionMatrix();
       this.camera.position.set(Math.sin(this.showAngle) * r, h, Math.cos(this.showAngle) * r);
       this.camera.lookAt(0, 0.72, 0);
+      // On a narrow screen the picker and the spec panel stack up over the bottom half, so
+      // the picture is slid up to put the car in the space above them instead of behind.
+      this.menuOffset(window.innerWidth <= 820 ? 0.2 : 0);
       this.showFill.position.copy(this.camera.position);
       if (this.showCar) this.showCar.rotation.y = 0;
       this.post.render(this.showroom, this.camera);
       return;
     }
 
+    this.menuOffset(0);
     this.updateRace(dt);
     this.updateCamera(dt);
     this.tyreFx.update(dt, this.cars, this.camera, this.renderer.domElement.height);
@@ -1039,6 +1245,16 @@ class Game {
       slide: p.slide, rumble: p.rumble, boosting: p.boosting,
     });
     this.post.render(this.raceScene, this.camera);
+  }
+
+  // Slides the rendered picture up by `frac` of the screen height; 0 puts it back.
+  menuOffset(frac) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const y = Math.round(h * frac);
+    const v = this.camera.view;
+    if (!y) { if (v && v.enabled) this.camera.clearViewOffset(); return; }
+    if (v && v.enabled && v.offsetY === y && v.fullWidth === w && v.fullHeight === h) return;
+    this.camera.setViewOffset(w, h, 0, y, w, h);
   }
 
   resize() {
@@ -1061,10 +1277,13 @@ class Game {
     if (q.has('opp')) this.settings.opponents = Math.max(0, +q.get('opp'));
     if (q.has('diff')) this.settings.difficulty = q.get('diff');
     if (q.has('scans')) this.settings.scans = q.get('scans') === '1';
+    if (q.has('quality')) this.settings.quality = q.get('quality');
     this.autopilot = q.get('auto') === '1';
     this.refreshShowroomCar();
-    this.ui.buildOptions(this.settings);
+    this.applyQuality();
+    this.ui.buildOptions(this.settings, this.tier());
     this.ui.selectTrack(this.settings.trackIndex);
+    this.refreshSetup();
     // selectCar only moves the highlight; the panel was built from the saved carIndex,
     // so it has to be told as well or it describes a different car than the one selected
     this.ui.selectCar(this.settings.carIndex);
