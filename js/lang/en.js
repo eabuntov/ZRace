@@ -71,6 +71,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CARAVANS',
   'options.caravansNote': 'Three camels amble around the circuit carrying a strongbox each. Pass close to one in the run-off and the coins are yours. They do not take part in the race.',
+  'options.scans': 'DETAILED RIVALS',
+  'options.scansNote': 'Race every opponent in the full scanned model, as your own car is, instead of the simpler built one. The models download the first time they are needed, and a full grid is heavier on the graphics card.',
   'options.glow': 'LIGHT GLOW',
   'options.glowNote': 'Brake lights, headlamps and the sun bleed a little light into the picture around them. Turn it off if the game stutters on this computer.',
   'opt.on': 'ON',

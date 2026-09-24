@@ -58,7 +58,7 @@ class Game {
 
     this.settings = Object.assign(
       { carIndex: 0, paintIndex: 0, trackIndex: 0, laps: 3, opponents: 5, difficulty: 'normal',
-        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, glow: false, coins: 0 },
+        name: Records.DEFAULT_NAME, lang: 'auto', caravans: false, glow: false, scans: false, coins: 0 },
       this.load()
     );
     this.best = this.settings.best || {};
@@ -536,6 +536,8 @@ class Game {
       .sort((a, b) => Math.abs(perf(a) - pp) - Math.abs(perf(b) - pp));
     this.cars = [];
     this.shadows = [];
+    // a scan that arrives after this race has been torn down must not land in the next one
+    this.raceId = (this.raceId || 0) + 1;
     const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false, opacity: 0.55 });
 
     for (let i = 0; i < n; i++) {
@@ -553,7 +555,7 @@ class Game {
       v.mesh = buildCar(spec, paint, { number: isPlayer ? 1 : i + 2 });
       v.mesh.rotation.order = 'YXZ';
       this.raceScene.add(v.mesh);
-      if (isPlayer) this.raceScanForPlayer(v, paint);
+      if (isPlayer || this.settings.scans) this.raceScan(v, paint);
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(spec.dims.L * 1.25, spec.dims.W * 2.0), shadowMat);
       sh.rotation.x = -Math.PI / 2;
       this.raceScene.add(sh);
@@ -607,12 +609,14 @@ class Game {
     console.log(`[zrace] ${t(`track.${def.id}.name`)} built in ${Math.round(performance.now() - t0)} ms`);
   }
 
-  // The player's car is the one on screen for the whole race, so it gets the scan; the
-  // opponents stay code-built, which is what keeps the draw calls down. The scan has to be
-  // rigged first - a scanned body on wheels that do not turn is worse than a simpler car
-  // that behaves - and if that fails the built car simply stays where it is.
-  raceScanForPlayer(v, paintHex) {
-    const race = (this.raceId = (this.raceId || 0) + 1);
+  // The player's car is the one on screen for the whole race, so it always gets the scan.
+  // The opponents stay code-built unless the options ask otherwise, which is what keeps the
+  // draw calls down: a scan is dozens of meshes where a built car is a handful. The scan
+  // has to be rigged first - a scanned body on wheels that do not turn is worse than a
+  // simpler car that behaves - and if that fails the built car simply stays where it is.
+  // It arrives whenever the model has downloaded, so the car swaps over mid-race if needs be.
+  raceScan(v, paintHex) {
+    const race = this.raceId;
     loadShowroomCar(v.spec, paintHex).then((scan) => {
       if (!scan || race !== this.raceId || !this.cars || !this.cars.includes(v)) return;
       const rig = rigScan(scan, v.spec);
@@ -1045,7 +1049,7 @@ class Game {
     this.camera.updateProjectionMatrix();
   }
 
-  // Debug / test entry: ?track=suzuka&car=su7&laps=1&opp=3&auto=1&go=1
+  // Debug / test entry: ?track=suzuka&car=su7&laps=1&opp=3&auto=1&go=1&scans=1
   bootFromQuery() {
     const q = new URLSearchParams(location.search);
     if (!q.toString()) { this.refreshShowroomCar(); return; }
@@ -1056,6 +1060,7 @@ class Game {
     if (q.has('laps')) this.settings.laps = Math.max(1, +q.get('laps'));
     if (q.has('opp')) this.settings.opponents = Math.max(0, +q.get('opp'));
     if (q.has('diff')) this.settings.difficulty = q.get('diff');
+    if (q.has('scans')) this.settings.scans = q.get('scans') === '1';
     this.autopilot = q.get('auto') === '1';
     this.refreshShowroomCar();
     this.ui.buildOptions(this.settings);

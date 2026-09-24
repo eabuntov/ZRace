@@ -56,6 +56,8 @@ export default {
   'options.auto': '自动',
   'options.caravans': '商队',
   'options.caravansNote': '三只骆驼绕着赛道慢慢走，每只背上都驮着一个钱箱。在缓冲区擦身而过，金币就归你了。它们不参加比赛。',
+  'options.scans': '精细对手',
+  'options.scansNote': '所有对手都使用与你的车相同的完整扫描模型，而不是简化模型。模型在首次需要时下载，满员发车对显卡的负担更重。',
   'options.glow': '光晕',
   'options.glowNote': '刹车灯、大灯和太阳会在周围晕出一点光。如果游戏在这台电脑上卡顿，请关闭。',
   'opt.on': '开',

@@ -104,8 +104,19 @@ export function rigScan(root, spec) {
       if (m && m.emissive && TAIL.test(m.name || '')) { tailMat = m; return; }
     }
   });
-  if (tailMat) tailMat.emissive.setHex(0xff2a1c);
-  else tailMat = new THREE.MeshStandardMaterial();
+  // Every copy of a model shares its materials with the cached original, and the brake
+  // lights are driven per car - so each rigged car gets a tail lamp of its own, or one car
+  // braking would light up every other car built from the same scan.
+  if (tailMat) {
+    const shared = tailMat;
+    tailMat = shared.clone();
+    tailMat.emissive.setHex(0xff2a1c);
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      if (Array.isArray(o.material)) o.material = o.material.map((m) => (m === shared ? tailMat : m));
+      else if (o.material === shared) o.material = tailMat;
+    });
+  } else tailMat = new THREE.MeshStandardMaterial();
 
   return {
     wheels: [made.LF, made.RF, made.LB, made.RB],

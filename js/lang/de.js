@@ -59,6 +59,8 @@ export default {
   'options.auto': 'AUTOM.',
   'options.caravans': 'KARAWANEN',
   'options.caravansNote': 'Drei Kamele ziehen gemächlich ihre Runden, jedes mit einer Truhe auf dem Höcker. Kommen Sie im Auslauf nah genug heran, gehören die Münzen Ihnen. Am Rennen nehmen sie nicht teil.',
+  'options.scans': 'DETAILLIERTE GEGNER',
+  'options.scansNote': 'Alle Gegner fahren mit dem vollständigen gescannten Modell wie Ihr eigenes Auto statt mit dem einfacheren gebauten. Die Modelle werden beim ersten Bedarf geladen, und ein volles Feld fordert die Grafikkarte stärker.',
   'options.glow': 'LICHTSCHEIN',
   'options.glowNote': 'Bremslichter, Scheinwerfer und die Sonne überstrahlen das Bild um sich herum ein wenig. Schalten Sie es aus, wenn das Spiel auf diesem Rechner ruckelt.',
   'opt.on': 'AN',

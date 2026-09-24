@@ -59,6 +59,8 @@ export default {
   'options.auto': 'AUTO',
   'options.caravans': 'CARAVANAS',
   'options.caravansNote': 'Tres camellos recorren el circuito sin prisa, cada uno con un cofre a la espalda. Pásate cerca de uno por el escape y las monedas son tuyas. No corren.',
+  'options.scans': 'RIVALES DETALLADOS',
+  'options.scansNote': 'Todos los rivales corren con el modelo escaneado completo, como tu coche, en lugar del modelo simple. Los modelos se descargan la primera vez que hacen falta, y una parrilla completa exige más a la tarjeta gráfica.',
   'options.glow': 'RESPLANDOR',
   'options.glowNote': 'Las luces de freno, los faros y el sol desbordan un poco de luz a su alrededor. Desactívalo si el juego va a tirones en este equipo.',
   'opt.on': 'SÍ',
