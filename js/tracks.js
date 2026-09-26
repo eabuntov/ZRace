@@ -85,6 +85,7 @@ export const TRACKS = [
       ground: 'grass', groundTint: '#7d9a4c',
       runoff: 'asphalt', gravel: false,
       kerb: ['#d8262c', '#f4f4f4'],
+      accent: '#e23b2e',   // grandstand roofs, braking boards, the menu map
       wall: { type: 'concrete', color: '#e9e6df', stripe: '#c8102e' },
       hills: { amp: 4, scale: 500 },
       mountains: null,
@@ -177,6 +178,7 @@ export const TRACKS = [
       ground: 'urban', groundTint: '#b9b0a0',
       runoff: 'pavement', gravel: false,
       kerb: ['#d8262c', '#f4f4f4'],
+      accent: '#d9b25a',   // grandstand roofs, braking boards, the menu map
       wall: { type: 'armco', color: '#c9ced4', stripe: '#d8262c' },
       hills: { amp: 30, scale: 450 },
       mountains: { color: '#57705a', height: [240, 520], dist: 1800, count: 14 },
@@ -261,6 +263,7 @@ export const TRACKS = [
       ground: 'grass', groundTint: '#6f9a45',
       runoff: 'grass', gravel: true,
       kerb: ['#d8262c', '#f4f4f4'],
+      accent: '#ef7aa4',   // grandstand roofs, braking boards, the menu map
       wall: { type: 'tyres', color: '#1c1c1c', stripe: '#f4f4f4' },
       hills: { amp: 16, scale: 420 },
       mountains: { color: '#4f6f63', height: [220, 480], dist: 1900, count: 16 },
@@ -338,6 +341,7 @@ export const TRACKS = [
       ground: 'grass', groundTint: '#62923e',
       runoff: 'grass', gravel: true,
       kerb: ['#d8262c', '#f4f4f4'],
+      accent: '#23a24d',   // grandstand roofs, braking boards, the menu map
       wall: { type: 'armco', color: '#c9ced4', stripe: '#1f8f3a' },
       hills: { amp: 3, scale: 500 },
       mountains: { color: '#6b7f9c', height: [180, 380], dist: 2800, count: 12 },
@@ -412,6 +416,7 @@ export const TRACKS = [
       ground: 'dry', groundTint: '#a3a15a',
       runoff: 'grass', gravel: false,
       kerb: ['#d8262c', '#f4f4f4'],
+      accent: '#3d7bd9',   // grandstand roofs, braking boards, the menu map
       wall: { type: 'concrete', color: '#dcdad4', stripe: '#1f4fa8' },
       hills: { amp: 45, scale: 520 },
       mountains: { color: '#5d6f57', height: [200, 430], dist: 2100, count: 16 },

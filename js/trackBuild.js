@@ -2,6 +2,7 @@
 // barriers, terrain, water, scenery and sky.
 import * as THREE from 'three';
 import * as TEX from './textures.js';
+import { speedProfile } from './ai.js';
 
 const KERB_W = 1.3;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -40,6 +41,48 @@ function ribbon(path, idx, aFn, bFn, yOff, uv, closed) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  g.setIndex(new THREE.BufferAttribute(index, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
+// The road surface: the same ribbon, but several vertices across rather than two, so it
+// can carry vertex colour - a darker, rubbered-in band along the racing line and paler,
+// dustier edges. `cols(i)` gives the lateral offsets left to right (descending), `shade(i,
+// c)` the brightness at column c. The colour multiplies the asphalt texture in the one
+// material the road already had, so it costs a few thousand vertices and nothing else.
+function roadRibbon(path, idx, cols, shade, yOff, acrossM, alongM) {
+  const m = idx.length, w = cols(idx[0]).length;
+  const pos = new Float32Array(m * w * 3);
+  const uvs = new Float32Array(m * w * 2);
+  const col = new Float32Array(m * w * 3);
+  for (let k = 0; k < m; k++) {
+    const i = idx[k], us = cols(i), y = path.y[i] + yOff, s = i * path.spacing;
+    for (let c = 0; c < w; c++) {
+      const o = (k * w + c);
+      pos[o * 3] = path.x[i] + path.lx[i] * us[c];
+      pos[o * 3 + 1] = y;
+      pos[o * 3 + 2] = path.z[i] + path.lz[i] * us[c];
+      uvs[o * 2] = us[c] / acrossM;
+      uvs[o * 2 + 1] = s / alongM;
+      const v = shade(i, c);
+      col[o * 3] = col[o * 3 + 1] = col[o * 3 + 2] = v;
+    }
+  }
+  const index = new Uint32Array(m * (w - 1) * 6);
+  let q = 0;
+  for (let k = 0; k < m; k++) {
+    const k2 = (k + 1) % m;
+    for (let c = 0; c < w - 1; c++) {
+      const a0 = k * w + c, b0 = a0 + 1, a1 = k2 * w + c, b1 = a1 + 1;
+      index.set([a0, b0, a1, a1, b0, b1], q);
+      q += 6;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setIndex(new THREE.BufferAttribute(index, 1));
   g.computeVertexNormals();
   return g;
@@ -99,11 +142,19 @@ const allIdx = (n) => { const a = new Array(n); for (let i = 0; i < n; i++) a[i]
 // --- the world ---------------------------------------------------------------
 
 export class TrackWorld {
-  constructor(scene, path, def) {
+  // opts.line: the racing line's lateral offsets, for the rubbered-in band on the road.
+  // opts.detail: 0..1 scale on scenery density; opts.shadowSize: the sun's shadow map.
+  // Both come from the visual quality setting.
+  constructor(scene, path, def, opts = {}) {
     this.scene = scene;
     this.path = path;
     this.def = def;
     this.theme = def.theme;
+    this.line = opts.line || null;
+    this.detail = opts.detail ?? 1;
+    this.shadowSize = opts.shadowSize || 2048;
+    this.animated = [];
+    this.extraMats = [];
     this.group = new THREE.Group();
     this.disposables = [];
     this.rnd = TEX.mulberry(0x5eed ^ def.id.length * 7919);
@@ -116,6 +167,7 @@ export class TrackWorld {
     this._road();
     this._barriers();
     this._structures();
+    this._brakeBoards();
     this._scenery();
   }
 
@@ -173,7 +225,7 @@ export class TrackWorld {
     const sun = new THREE.DirectionalLight(t.sun.color, t.sun.intensity);
     sun.position.copy(this.sunDir).multiplyScalar(220);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
     const d = 95;
     Object.assign(sun.shadow.camera, { left: -d, right: d, top: d, bottom: -d, near: 1, far: 520 });
     sun.shadow.bias = -0.0006;
@@ -617,10 +669,48 @@ export class TrackWorld {
       }
     }
 
-    // asphalt
+    // asphalt, rubbered in along the line cars actually take
     const roadMap = TEX.asphaltTexture('road');
-    const roadMat = new THREE.MeshStandardMaterial({ map: roadMap, roughness: 0.92, metalness: 0.0 });
-    const road = new THREE.Mesh(ribbon(p, idx, () => halfW, () => -halfW, 0.05, [7, 7], true), roadMat);
+    const roadMat = new THREE.MeshStandardMaterial({ map: roadMap, roughness: 0.92, metalness: 0.0, vertexColors: true });
+    const line = this.line;
+    const lim = Math.max(0, halfW - 3.2);
+    const lineAt = (i) => (line ? Math.max(-lim, Math.min(lim, line[i])) : 0);
+    // Long, gentle patches of lighter and darker asphalt, as if laid in different years.
+    // Low-frequency on purpose: at speed, anything finer is just shimmer.
+    const patch = new Float32Array(n);
+    {
+      const rnd = TEX.mulberry(0x7a11 ^ n);
+      const raw = new Float32Array(n);
+      for (let i = 0; i < n; i += 20) {
+        const v = (rnd() - 0.5) * 0.1;
+        for (let k = 0; k < 20 && i + k < n; k++) raw[i + k] = v;
+      }
+      for (let i = 0; i < n; i++) {
+        let a = 0;
+        for (let k = -8; k <= 8; k++) a += raw[p.wrapI(i + k)];
+        patch[i] = 1 + a / 17;
+      }
+    }
+    // Most rubber goes down where cars brake hardest; a generic car's speed profile says where.
+    const rubber = new Float32Array(n);
+    if (line) {
+      const v = speedProfile(p, line, 10.3, 10, 70);
+      for (let i = 0; i < n; i++) {
+        const dv = v[i] - v[(i + 3) % n];      // slowing down over the next few samples
+        rubber[i] = Math.min(1, Math.max(0, dv * 0.5));
+      }
+    }
+    const cols = (i) => {
+      const c = lineAt(i);
+      return [halfW, halfW - 1.1, c + 2.0, c, c - 2.0, -halfW + 1.1, -halfW];
+    };
+    const SHADE = [1.1, 1.0, 0.9, 0.7, 0.9, 1.0, 1.1];
+    const shade = (i, c) => {
+      let v = line ? SHADE[c] : 1;
+      if (c === 3) v -= rubber[i] * 0.08;
+      return v * patch[i];
+    };
+    const road = new THREE.Mesh(roadRibbon(p, idx, cols, shade, 0.05, 7, 7), roadMat);
     this.track(road, false, true);
 
     // white edge lines
@@ -833,6 +923,10 @@ export class TrackWorld {
     crowd.repeat.set(7, 3);
     const crowdMat = new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.95 });
     const frameMat = new THREE.MeshStandardMaterial({ color: '#8d949c', roughness: 0.7, metalness: 0.25 });
+    // the roofs carry the circuit's own colour: the one thing on the straight that says
+    // where you are before any text does
+    const roofMat = new THREE.MeshStandardMaterial({ color: t.accent || '#8d949c', roughness: 0.6, metalness: 0.2 });
+    const flashSpots = [];
     const backMat = new THREE.MeshStandardMaterial({ color: '#d9dce0', roughness: 0.85 });
     const gs = t.grandstands || { count: 5, len: 34, gap: 40 };
     // box faces are [+x, -x, +y, -y, +z, -z]; the crowd goes on the face towards the track
@@ -848,7 +942,7 @@ export class TrackWorld {
       const seats = new THREE.Mesh(new THREE.BoxGeometry(11, 8.5, gs.len), faces);
       seats.position.set(grandSign * 5, 4.2, 0);
       seats.rotation.z = -grandSign * 0.26;
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.4, gs.len + 2), frameMat);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.4, gs.len + 2), roofMat);
       roof.position.set(grandSign * 6, 10.2, 0);
       const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 10, gs.len), frameMat);
       back.position.set(grandSign * 11.4, 5, 0);
@@ -858,7 +952,15 @@ export class TrackWorld {
       this.group.add(g);
       this.disposables.push(g);
       g.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
+      // points just in front of the crowd, in world space, for the camera flashes
+      g.updateMatrixWorld(true);
+      for (let f = 0; f < 10; f++) {
+        const local = new THREE.Vector3(-grandSign * 5.65, (this.rnd() - 0.5) * 7, (this.rnd() - 0.5) * (gs.len - 2));
+        flashSpots.push(local.applyMatrix4(seats.matrixWorld));
+      }
     }
+    this._crowdFlashes(flashSpots);
+    this._pitBeacons(pitSign);
 
     if (t.ferris) this._ferris();
     if (t.yachts) this._yachts(t.yachts);
@@ -1037,9 +1139,10 @@ export class TrackWorld {
     };
 
     const step = Math.max(1, Math.round(9 / p.spacing));
+    const treeDensity = (t.treeDensity || 0) * this.detail;
     for (let i = 0; i < p.n; i += step) {
       for (const side of [1, -1]) {
-        if (this.rnd() > (t.treeDensity || 0)) continue;
+        if (this.rnd() > treeDensity) continue;
         const wall = side > 0 ? p.wallL[i] : p.wallR[i];
         const u = side * (wall + 5 + this.rnd() * 34);
         const x = p.x[i] + p.lx[i] * u + (this.rnd() - 0.5) * 6;
@@ -1120,9 +1223,11 @@ export class TrackWorld {
     const spots = [];
     if (!bcfg || !(bcfg.density > 0)) return spots;
     const bstep = Math.max(1, Math.round(26 / p.spacing));
+    // the waterfront is Monaco, so the town thins less than the woods do
+    const density = bcfg.density * (0.5 + 0.5 * this.detail);
     for (let i = 0; i < p.n; i += bstep) {
       for (const side of [1, -1]) {
-        if (this.rnd() > bcfg.density) continue;
+        if (this.rnd() > density) continue;
         const wall = side > 0 ? p.wallL[i] : p.wallR[i];
         const u = side * (wall + 16 + this.rnd() * 26);
         const x = p.x[i] + p.lx[i] * u, z = p.z[i] + p.lz[i] * u;
@@ -1147,7 +1252,139 @@ export class TrackWorld {
     return spots;
   }
 
+  // --- trackside detail -------------------------------------------------------
+
+  // Distance boards - 150, 100, 50 - before the heaviest braking zones only. Three board
+  // meshes and one of posts, all instanced, however many zones there are; the numbers
+  // share one texture. They stand behind the barrier, like the gantry legs, since nothing
+  // but the wall line has collision.
+  _brakeBoards() {
+    const p = this.path, n = p.n;
+    if (!this.line) return;
+    const v = speedProfile(p, this.line, 10.3, 10, 70);
+    const zones = [];
+    for (const c of p.corners()) {
+      let vMin = Infinity;
+      for (let i = c.entry; i !== c.apex; i = (i + 1) % n) vMin = Math.min(vMin, v[i]);
+      vMin = Math.min(vMin, v[c.apex]);
+      const back = Math.round(220 / p.spacing);
+      let vMax = 0;
+      for (let k = 0; k < back; k++) vMax = Math.max(vMax, v[p.wrapI(c.entry - k)]);
+      if (vMax - vMin > 14) zones.push({ c, drop: vMax - vMin });
+    }
+    zones.sort((a, b) => b.drop - a.drop);
+    const chosen = zones.slice(0, 6);
+    if (!chosen.length) return;
+
+    const atlas = TEX.brakeBoardTexture(this.theme.accent || '#37e0a6');
+    const face = new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.6 });
+    const edge = new THREE.MeshStandardMaterial({ color: '#1b2029', roughness: 0.7, metalness: 0.2 });
+    const post = new THREE.MeshStandardMaterial({ color: '#9aa1a9', roughness: 0.5, metalness: 0.5 });
+    const W = 2.2, H = 1.6, POST_TOP = 1.3;
+    const geos = [0, 1, 2].map((slot) => {
+      const g = new THREE.BoxGeometry(W, H, 0.08);
+      // the +z face (vertices 16-19) shows one third of the atlas
+      const uv = g.attributes.uv;
+      for (let k = 16; k < 20; k++) uv.setX(k, (slot + uv.getX(k)) / 3);
+      return g;
+    });
+    const places = [[], [], []];
+    const posts = [];
+    const DIST = [150, 100, 50];
+    for (const { c } of chosen) {
+      const side = -c.dir;                        // on the outside, where the approach is
+      for (let slot = 0; slot < 3; slot++) {
+        const i = p.wrapI(c.entry - Math.round(DIST[slot] / p.spacing));
+        if (p.flags.tunnel[i] || p.flags.bridge[i]) continue;
+        const wall = side > 0 ? p.wallL[i] : p.wallR[i];
+        const u = side * (wall + 1.5);
+        const x = p.x[i] + p.lx[i] * u, z = p.z[i] + p.lz[i] * u;
+        const ground = Math.min(p.y[i], this.terrainHeight(x, z));
+        // face the oncoming cars, turned a little in towards the road
+        const nx = -p.tx[i] * 0.94 - side * p.lx[i] * 0.34, nz = -p.tz[i] * 0.94 - side * p.lz[i] * 0.34;
+        places[slot].push({ x, z, y: p.y[i] + POST_TOP + H / 2, rot: Math.atan2(nx, nz) });
+        posts.push({ x, z, y0: ground - 0.3, y1: p.y[i] + POST_TOP + 0.1 });
+      }
+    }
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pos = new THREE.Vector3();
+    places.forEach((list, slot) => {
+      if (!list.length) return;
+      const inst = new THREE.InstancedMesh(geos[slot], [edge, edge, edge, edge, face, edge], list.length);
+      list.forEach((o, k) => {
+        q.setFromAxisAngle(UP, o.rot);
+        inst.setMatrixAt(k, m.compose(pos.set(o.x, o.y, o.z), q, sc));
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      inst.frustumCulled = false;
+      this.track(inst, true, false);
+    });
+    const pg = new THREE.CylinderGeometry(0.06, 0.06, 1, 6);
+    const pi = new THREE.InstancedMesh(pg, post, posts.length);
+    posts.forEach((o, k) => {
+      q.identity();
+      pi.setMatrixAt(k, m.compose(pos.set(o.x, (o.y0 + o.y1) / 2, o.z), q, sc.set(1, o.y1 - o.y0, 1)));
+    });
+    pi.instanceMatrix.needsUpdate = true;
+    pi.frustumCulled = false;
+    this.track(pi, true, false);
+  }
+
+  // Camera flashes in the grandstands: a handful of tiny bright points, a couple lit at a
+  // time, changed a few times a second. One instanced draw, no shader, no light.
+  _crowdFlashes(spots) {
+    if (!spots.length) return;
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 1, 1).multiplyScalar(5) });
+    const inst = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.16, 0), mat, spots.length);
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let k = 0; k < spots.length; k++) inst.setMatrixAt(k, zero);
+    inst.frustumCulled = false;
+    this.track(inst, false, false);
+    const m = new THREE.Matrix4();
+    let lit = [], wait = 0;
+    this.animated.push((dt) => {
+      wait -= dt;
+      if (wait > 0) return;
+      wait = 0.09 + this.rnd() * 0.2;
+      for (const k of lit) inst.setMatrixAt(k, zero);
+      lit = [];
+      const count = this.rnd() < 0.5 ? 1 : 2;
+      for (let c = 0; c < count; c++) {
+        const k = (this.rnd() * spots.length) | 0;
+        inst.setMatrixAt(k, m.makeTranslation(spots[k].x, spots[k].y, spots[k].z));
+        lit.push(k);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+    });
+  }
+
+  // Amber beacons along the top of the pit wall, blinking in two alternating sets.
+  _pitBeacons(pitSign) {
+    const p = this.path;
+    const on = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb020').multiplyScalar(3) });
+    const off = new THREE.MeshStandardMaterial({ color: '#4a3a1c', roughness: 0.5 });
+    const geo = new THREE.BoxGeometry(0.3, 0.22, 0.3);
+    const sets = [[], []];
+    for (let k = 0; k < 6; k++) {
+      const i = p.wrapI(-76 + k * 18);
+      const u = pitSign * ((pitSign > 0 ? p.wallL[i] : p.wallR[i]) + 2.5);
+      const b = new THREE.Mesh(geo, off);
+      b.position.set(p.x[i] + p.lx[i] * u, p.y[i] + 1.22, p.z[i] + p.lz[i] * u);
+      this.track(b, false, false);
+      sets[k % 2].push(b);
+    }
+    let t = 0, phase = -1;
+    this.animated.push((dt) => {
+      t += dt;
+      const ph = Math.floor(t * 1.6) % 2;
+      if (ph === phase) return;
+      phase = ph;
+      sets.forEach((set, s) => set.forEach((b) => { b.material = s === ph ? on : off; }));
+    });
+    this.extraMats.push(on, off);             // whichever is not on a mesh at dispose time
+  }
+
   update(dt, elapsed) {
+    for (const fn of this.animated) fn(dt);
     if (this.ferris) this.ferris.rotation.z += dt * 0.12;
     if (this.skyMat) this.skyMat.uniforms.time.value = elapsed;
     if (this.waterMap) {
@@ -1177,6 +1414,7 @@ export class TrackWorld {
         mats.forEach((mm) => mm.dispose());
       }
     });
+    for (const m of this.extraMats) m.dispose();
     this.scene.fog = null;
     if (this.envTarget) { this.envTarget.dispose(); this.envTarget = null; }
   }

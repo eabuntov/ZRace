@@ -118,6 +118,7 @@ export const CARS = [
   },
   {
     id: 'u9',
+    plateY: 0.7,   // up out of the diffuser, whose fins would otherwise stand in front of it
     name: 'YANGWANG U9',
     type: 'Electric hypercar',
     tagline: 'Four motors, a metre and a bit tall, and quicker than anything here.',
@@ -217,6 +218,7 @@ export const CARS = [
   },
   {
     id: 'tiggo8',
+    plateY: 0.97,  // the scan's own plate is painted onto the tailgate, well above the bumper
     name: 'CHERY TIGGO 8 PRO e+',
     type: 'Three-row SUV',
     tagline: 'Seven seats and a plug: the heaviest thing here that still hurries.',
@@ -1034,6 +1036,7 @@ export function buildCar(spec, paintHex, opts = {}) {
     new THREE.MeshStandardMaterial({ color: '#e2e6e9', roughness: 0.6 })
   );
   plate.position.set(0, Math.max(spec.ride + 0.3, tailTop - 0.5), zR - 0.02);
+  plate.name = 'zrace-plate-blank';            // plate.js mounts the driver's plate here
   group.add(plate);
 
   // diffuser, splitter, spoilers

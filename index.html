@@ -21,12 +21,12 @@
 
 <!-- ------------------------------- HUD ------------------------------- -->
 <div id="hud" class="hidden">
-  <div class="hud-corner tl">
+  <div class="hud-corner tl hud-chip">
     <div class="pos-box"><span id="pos">1</span><small>/<span id="posTotal">6</span></small></div>
     <div class="lap-box"><span data-i18n="hud.lap">LAP</span> <b><span id="lap">1</span>/<span id="lapTotal">3</span></b></div>
   </div>
 
-  <div class="hud-corner tr">
+  <div class="hud-corner tr hud-chip">
     <div class="time-row"><label data-i18n="hud.current">CURRENT</label><span id="tCur">--:--.---</span></div>
     <div class="time-row"><label data-i18n="hud.last">LAST</label><span id="tLast">--:--.---</span></div>
     <div class="time-row best"><label data-i18n="hud.best">BEST</label><span id="tBest">--:--.---</span></div>
@@ -43,7 +43,7 @@
       <canvas id="dial" width="260" height="260"></canvas>
       <div class="dial-read"><span id="kmh">0</span><small data-i18n="unit.kmh">km/h</small></div>
       <div class="dial-sub" id="powerRead">0 kW</div>
-      <div class="boost" id="boost"><i></i><label data-i18n="hud.boost">BOOST</label></div>
+      <div class="boost" id="boost"><i></i><label id="boostLabel">BOOST</label></div>
     </div>
   </div>
 
@@ -51,8 +51,18 @@
 
   <div id="coins" class="coins hidden"><i>◉</i><b id="coinCount">0</b><label data-i18n="hud.coins">COINS</label></div>
 
-  <div id="lights" class="start-lights"></div>
+  <div id="lights" class="start-lights">
+    <div class="bulbs" id="bulbs"></div>
+    <p class="start-hint" id="startHint"></p>
+  </div>
   <div id="msg" class="center-msg"></div>
+  <div id="cue" class="cue" aria-live="polite"><b></b><span></span><small></small></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <div id="hint" class="first-hint hidden" role="dialog" data-i18n-aria="hint.title" aria-label="Controls">
+    <div class="keys" id="hintKeys"></div>
+    <button id="hintClose" class="hint-close" data-i18n="hint.dismiss">GOT IT</button>
+  </div>
 
   <div id="touch" class="touch hidden">
     <div class="touch-left">
@@ -115,13 +125,27 @@
     <header class="screen-head">
       <button class="back" data-back="car" data-i18n="nav.back">‹ Back</button>
       <h2 data-i18n="track.heading">Choose a circuit</h2>
-      <button class="primary" id="startRace" data-i18n="track.start">START RACE ›</button>
+      <span></span>
     </header>
-    <div class="track-grid" id="trackGrid"></div>
-    <div class="race-options">
-      <div class="opt"><label data-i18n="opt.laps">LAPS</label><div class="seg" id="optLaps"></div></div>
-      <div class="opt"><label data-i18n="opt.opponents">OPPONENTS</label><div class="seg" id="optCars"></div></div>
-      <div class="opt"><label data-i18n="opt.difficulty">DIFFICULTY</label><div class="seg" id="optDiff"></div></div>
+    <div class="track-layout">
+      <div class="track-grid" id="trackGrid"></div>
+      <!-- The circuit, the settings and the start button are one decision, so they sit
+           together: whatever is picked on the left is described and raced from here. -->
+      <aside class="race-setup" id="raceSetup">
+        <canvas id="setupMap" width="560" height="300"></canvas>
+        <h3 id="setupName"></h3>
+        <p class="meta" id="setupMeta"></p>
+        <p class="blurb" id="setupBlurb"></p>
+        <div class="race-options">
+          <div class="opt"><label data-i18n="opt.laps">LAPS</label><div class="seg" id="optLaps"></div></div>
+          <div class="opt"><label data-i18n="opt.opponents">OPPONENTS</label><div class="seg" id="optCars"></div></div>
+          <div class="opt"><label data-i18n="opt.difficulty">DIFFICULTY</label><div class="seg" id="optDiff"></div></div>
+        </div>
+        <div class="start-bar">
+          <p class="race-summary" id="raceSummary"></p>
+          <button class="primary start" id="startRace" data-i18n="track.start">START RACE ›</button>
+        </div>
+      </aside>
     </div>
   </section>
 
@@ -160,6 +184,16 @@
       </div>
       <p class="disclaimer" data-i18n="options.languageNote"></p>
       <div class="opt-row">
+        <label data-i18n="options.quality">VISUAL QUALITY</label>
+        <div class="seg" id="optQuality"></div>
+      </div>
+      <p class="disclaimer" id="qualityNote"></p>
+      <div class="opt-row">
+        <label data-i18n="options.cues">DRIVING CUES</label>
+        <div class="seg" id="optCues"></div>
+      </div>
+      <p class="disclaimer" data-i18n="options.cuesNote"></p>
+      <div class="opt-row">
         <label data-i18n="options.caravans">CARAVANS</label>
         <div class="seg" id="optCaravans"></div>
       </div>
@@ -168,12 +202,12 @@
         <label data-i18n="options.scans">DETAILED RIVALS</label>
         <div class="seg" id="optScans"></div>
       </div>
-      <p class="disclaimer" data-i18n="options.scansNote"></p>
+      <p class="disclaimer" id="scansNote" data-i18n="options.scansNote"></p>
       <div class="opt-row">
         <label data-i18n="options.glow">LIGHT GLOW</label>
         <div class="seg" id="optGlow"></div>
       </div>
-      <p class="disclaimer" data-i18n="options.glowNote"></p>
+      <p class="disclaimer" id="glowNote" data-i18n="options.glowNote"></p>
     </div>
   </section>
 

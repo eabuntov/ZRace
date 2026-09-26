@@ -313,22 +313,35 @@ export class TrackPath {
     return out;
   }
 
-  // Distinct corners (for the menu): runs of curvature that turn more than ~20 degrees.
-  cornerCount() {
-    let c = 0, inC = false, turn = 0, sign = 0;
+  // Distinct corners: runs of curvature that turn more than ~20 degrees. Each one is
+  // { entry, apex, exit } sample indices, `dir` +1 for a left-hander and -1 for a right,
+  // and `turn` in radians. The menu counts them; the HUD calls them out and marks the
+  // next one on the minimap. Worked out once and kept - it is the same answer every time.
+  corners() {
+    if (this._corners) return this._corners;
+    const out = [];
+    let inC = false, turn = 0, sign = 0, entry = 0, apex = 0, peak = 0;
+    const close = (exit) => {
+      if (Math.abs(turn) > 0.35) out.push({ entry, apex, exit, dir: sign, turn: Math.abs(turn) });
+    };
     for (let i = 0; i < this.n; i++) {
       const kk = this.k[i];
       const on = Math.abs(kk) > 1 / 300;
       const sg = Math.sign(kk);
       if (on && (!inC || sg !== sign)) {
-        if (inC && Math.abs(turn) > 0.35) c++;
-        inC = true; turn = 0; sign = sg;
+        if (inC) close(i - 1);
+        inC = true; turn = 0; sign = sg; entry = i; apex = i; peak = 0;
       }
-      if (on) turn += kk * this.spacing;
-      if (!on && inC) { inC = false; if (Math.abs(turn) > 0.35) c++; }
+      if (on) {
+        turn += kk * this.spacing;
+        if (Math.abs(kk) > peak) { peak = Math.abs(kk); apex = i; }
+      }
+      if (!on && inC) { inC = false; close(i - 1); }
     }
-    return c;
+    return (this._corners = out);
   }
+
+  cornerCount() { return this.corners().length; }
 
   bounds(margin = 0) {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, minY = Infinity, maxY = -Infinity;
