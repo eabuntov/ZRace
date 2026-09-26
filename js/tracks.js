@@ -7,6 +7,12 @@
 //
 // Point options: h (height in metres), tunnel, waterL / waterR (water beyond that side),
 // runoff / runoffL / runoffR (metres to the barrier), pit / grand ('L' | 'R').
+//
+// Landscape (js/landscape.js): `forest` is how much of the land around the circuit is
+// woodland (0..1) and what grows there; `brush` how thickly bushes and stones are strewn
+// beyond the barrier; `fields` how much of the open, level land is farmed (0..1); `rock`
+// the colour of bare rock and stone; `wild` the colour of the unpaved ground on a street
+// circuit; `mountains.snow` caps the high ground with snow.
 
 export const TRACKS = [
   {
@@ -91,6 +97,9 @@ export const TRACKS = [
       skyline: { count: 60, dist: [900, 1800], height: [70, 260], tower: true, palette: ['#8d97a8', '#a8a397', '#6f7c8f', '#b6b0a5'] },
       trees: [{ type: 'round', weight: 1, tint: '#4d7a36' }, { type: 'pine', weight: 0.3 }],
       treeDensity: 0.3,
+      forest: { density: 0.3, trees: [{ type: 'round', weight: 1, tint: '#4d7a36' }, { type: 'round', weight: 0.5, tint: '#5f8a3e' }, { type: 'pine', weight: 0.3 }] },
+      brush: { bushes: 0.35 },
+      fields: 0.9,
       buildings: { density: 0.05, minH: 8, maxH: 30, palette: ['#d8d3c8', '#b9c3cc', '#e5e1d6'] },
       banner: 'SHANGHAI',
     },
@@ -174,7 +183,7 @@ export const TRACKS = [
       fog: { color: '#cfe4f7', density: 0.00055 },
       sun: { color: '#fff3dc', intensity: 3.0, elevation: 52, azimuth: 150 },
       hemi: { sky: '#cfe3ff', ground: '#8c7a60', intensity: 1.25 },
-      ground: 'urban', groundTint: '#b9b0a0',
+      ground: 'urban', groundTint: '#b9b0a0', wild: '#76864a', rock: '#b9ae98',
       runoff: 'pavement', gravel: false,
       kerb: ['#d8262c', '#f4f4f4'],
       wall: { type: 'armco', color: '#c9ced4', stripe: '#d8262c' },
@@ -183,6 +192,8 @@ export const TRACKS = [
       water: { level: -2, color: '#1a6b93' },
       trees: [{ type: 'palm', weight: 1 }, { type: 'round', weight: 0.25, tint: '#4f7d3a' }],
       treeDensity: 0.25,
+      forest: { density: 0.65, trees: [{ type: 'pine', weight: 0.9, tint: '#3f6b3a' }, { type: 'round', weight: 1, tint: '#56773c' }, { type: 'palm', weight: 0.2 }] },
+      brush: { bushes: 0.3, rocks: 0.12 },
       buildings: { density: 0.9, minH: 12, maxH: 45, palette: ['#f1e3c6', '#e9c9a3', '#f3d6cf', '#fbf4e6', '#e2b98f', '#d9d2c3'] },
       grandstands: { count: 3, len: 24, gap: 34 },
       banner: 'MONTE CARLO',
@@ -266,6 +277,9 @@ export const TRACKS = [
       mountains: { color: '#4f6f63', height: [220, 480], dist: 1900, count: 16 },
       trees: [{ type: 'cherry', weight: 1 }, { type: 'pine', weight: 0.9 }, { type: 'round', weight: 0.4, tint: '#4c7a33' }],
       treeDensity: 0.55,
+      forest: { density: 0.62, trees: [{ type: 'pine', weight: 1 }, { type: 'round', weight: 0.7, tint: '#4c7a33' }, { type: 'cherry', weight: 0.12 }] },
+      brush: { bushes: 0.45, rocks: 0.05 },
+      fields: 0.5,
       buildings: { density: 0.03, minH: 6, maxH: 14, palette: ['#e8e4da', '#cfd6dc'] },
       banner: 'SUZUKA',
       ferris: true,
@@ -340,9 +354,12 @@ export const TRACKS = [
       kerb: ['#d8262c', '#f4f4f4'],
       wall: { type: 'armco', color: '#c9ced4', stripe: '#1f8f3a' },
       hills: { amp: 3, scale: 500 },
-      mountains: { color: '#6b7f9c', height: [180, 380], dist: 2800, count: 12 },
+      mountains: { color: '#6b7f9c', height: [180, 380], dist: 2800, count: 12, snow: true },
       trees: [{ type: 'round', weight: 1, tint: '#3f6f2c' }, { type: 'round', weight: 0.6, tint: '#5a8a38' }, { type: 'pine', weight: 0.3 }],
       treeDensity: 0.95,
+      forest: { density: 0.9, trees: [{ type: 'round', weight: 1, tint: '#3f6f2c' }, { type: 'round', weight: 0.7, tint: '#5a8a38' }, { type: 'pine', weight: 0.25 }] },
+      brush: { bushes: 0.4 },
+      fields: 0.75,
       buildings: { density: 0, minH: 6, maxH: 12, palette: ['#e8d9bd'] },
       grandstands: { count: 6, len: 36, gap: 42 },
       banner: 'MONZA',
@@ -409,7 +426,7 @@ export const TRACKS = [
       fog: { color: '#d3e2ee', density: 0.00038 },
       sun: { color: '#fff0d4', intensity: 3.0, elevation: 40, azimuth: 30 },
       hemi: { sky: '#cfe0ff', ground: '#7a6a45', intensity: 1.2 },
-      ground: 'dry', groundTint: '#a3a15a',
+      ground: 'dry', groundTint: '#a3a15a', rock: '#a88c6c',
       runoff: 'grass', gravel: false,
       kerb: ['#d8262c', '#f4f4f4'],
       wall: { type: 'concrete', color: '#dcdad4', stripe: '#1f4fa8' },
@@ -417,6 +434,9 @@ export const TRACKS = [
       mountains: { color: '#5d6f57', height: [200, 430], dist: 2100, count: 16 },
       trees: [{ type: 'eucalyptus', weight: 1 }, { type: 'eucalyptus', weight: 0.6, tint: '#71805a' }],
       treeDensity: 0.7,
+      forest: { density: 0.5, trees: [{ type: 'eucalyptus', weight: 1 }, { type: 'eucalyptus', weight: 0.6, tint: '#71805a' }] },
+      brush: { bushes: 0.35, rocks: 0.35 },
+      fields: 0.4,
       buildings: { density: 0.02, minH: 5, maxH: 9, palette: ['#e4dccb', '#cfc6b3'] },
       banner: 'BATHURST',
     },

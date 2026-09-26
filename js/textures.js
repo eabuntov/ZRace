@@ -93,6 +93,35 @@ export function gravelTexture() {
   });
 }
 
+// Bare ground and rock for the steep parts of the landscape. It is a light, nearly
+// neutral grey on purpose: the terrain's vertex colours give it its hue, so the same
+// texture is limestone at Monaco, sandstone at Bathurst and snow on the Alps.
+export function rockTexture() {
+  return cached('rock', () => {
+    const c = canvas(256, 256), ctx = c.getContext('2d'), rnd = mulberry(19);
+    ctx.fillStyle = '#c4c0b8';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 60; i++) {
+      const v = 150 + rnd() * 80;
+      ctx.fillStyle = `rgba(${v},${v - 4},${v - 10},0.35)`;
+      ctx.beginPath();
+      ctx.ellipse(rnd() * 256, rnd() * 256, 8 + rnd() * 30, 5 + rnd() * 18, rnd() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    speckle(ctx, 256, 256, 7000, rnd, ['#b3afa6', '#d2cec6', '#a29e95', '#dcd8d0'], 1, 3);
+    ctx.strokeStyle = 'rgba(70,64,58,0.3)';
+    for (let i = 0; i < 26; i++) {
+      ctx.lineWidth = 0.6 + rnd() * 1.2;
+      let x = rnd() * 256, y = rnd() * 256;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 30; y += (rnd() - 0.5) * 30; ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+    return toTexture(c, 1, 1);
+  });
+}
+
 export function pavementTexture() {
   return cached('pavement', () => {
     const c = canvas(256, 256), ctx = c.getContext('2d'), rnd = mulberry(17);

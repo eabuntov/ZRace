@@ -2,6 +2,7 @@
 // barriers, terrain, water, scenery and sky.
 import * as THREE from 'three';
 import * as TEX from './textures.js';
+import { makeNoise, Ground, groundMaterial, FarLand, plantLandscape } from './landscape.js';
 
 const KERB_W = 1.3;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -99,20 +100,27 @@ const allIdx = (n) => { const a = new Array(n); for (let i = 0; i < n; i++) a[i]
 // --- the world ---------------------------------------------------------------
 
 export class TrackWorld {
-  constructor(scene, path, def) {
+  constructor(scene, path, def, opts = {}) {
     this.scene = scene;
+    this.lite = !!opts.lite;
     this.path = path;
     this.def = def;
     this.theme = def.theme;
     this.group = new THREE.Group();
     this.disposables = [];
     this.rnd = TEX.mulberry(0x5eed ^ def.id.length * 7919);
+    let seed = 0x9e3779b9;
+    for (const ch of def.id) seed = Math.imul(seed ^ ch.charCodeAt(0), 0x85ebca6b);
+    this.noise = makeNoise(seed);
+    this.ground = new Ground(this.theme, this.noise);
+    this.clearings = [];
     scene.add(this.group);
 
     this._hash();
     this._lights();
     this._sky();
     this._terrain();
+    if (this.theme.skyline) this._skyline(this.theme.skyline);
     this._road();
     this._barriers();
     this._structures();
@@ -303,16 +311,12 @@ export class TrackWorld {
   }
 
   _sky() {
-    const t = this.theme;
     const geo = new THREE.SphereGeometry(7000, 32, 16);
     const sky = new THREE.Mesh(geo, this._skyMaterial(true));
     sky.frustumCulled = false;
     this.group.add(sky);
     this.disposables.push(sky);
     this.skyMat = sky.material;
-
-    if (t.mountains) this._mountains(t.mountains);
-    if (t.skyline) this._skyline(t.skyline);
   }
 
   // What the cars reflect: this circuit's own sky, clouds and sun where they are, over a
@@ -332,49 +336,6 @@ export class TrackWorld {
     this.envTarget = pmrem.fromScene(s, 0.01, 0.1, 400);
     for (const m of [sky, ground]) { m.geometry.dispose(); m.material.dispose(); }
     return this.envTarget.texture;
-  }
-
-  _mountains(cfg) {
-    const b = this.path.bounds();
-    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
-    const verts = [], colors = [];
-    const base = new THREE.Color(cfg.color);
-    for (let i = 0; i < cfg.count; i++) {
-      // each "mountain" is a small cluster of peaks so the horizon reads as a ridge
-      const ang = (i / cfg.count) * Math.PI * 2 + (this.rnd() - 0.5) * 0.5;
-      const dist = cfg.dist * (0.75 + this.rnd() * 0.55);
-      const peaks = 2 + ((this.rnd() * 3) | 0);
-      for (let q = 0; q < peaks; q++) {
-        const a2 = ang + (q - peaks / 2) * 0.075;
-        const d2 = dist * (0.94 + this.rnd() * 0.12);
-        const h = (cfg.height[0] + this.rnd() * (cfg.height[1] - cfg.height[0])) * (q === 0 ? 1 : 0.6 + this.rnd() * 0.5);
-        const w = h * (1.1 + this.rnd() * 0.8);
-        const px = cx + Math.sin(a2) * d2, pz = cz + Math.cos(a2) * d2;
-        const sides = 7;
-        const peak = new THREE.Color(cfg.snow ? '#eef3f8' : cfg.color).lerp(base, cfg.snow ? 0.45 : 0.85);
-        // one radius per corner, shared by the two faces that meet there, otherwise
-        // neighbouring faces do not line up and the slope shows gaps
-        const radii = [];
-        for (let sd = 0; sd < sides; sd++) radii.push(w * (0.65 + this.rnd() * 0.6));
-        for (let sd = 0; sd < sides; sd++) {
-          const a0 = (sd / sides) * Math.PI * 2, a1 = ((sd + 1) / sides) * Math.PI * 2;
-          const r0 = radii[sd], r1 = radii[(sd + 1) % sides];
-          verts.push(px + Math.cos(a0) * r0, -20, pz + Math.sin(a0) * r0);
-          verts.push(px + Math.cos(a1) * r1, -20, pz + Math.sin(a1) * r1);
-          verts.push(px, h, pz);
-          const shade = 0.72 + this.rnd() * 0.22;
-          const dark = base.clone().multiplyScalar(shade);
-          colors.push(dark.r, dark.g, dark.b, dark.r, dark.g, dark.b, peak.r, peak.g, peak.b);
-        }
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true, side: THREE.DoubleSide }));
-    mesh.frustumCulled = false;
-    this.track(mesh, false, false);
   }
 
   _skyline(cfg) {
@@ -397,9 +358,12 @@ export class TrackWorld {
       const dist = cfg.dist[0] + this.rnd() * (cfg.dist[1] - cfg.dist[0]);
       const h = cfg.height[0] + this.rnd() * (cfg.height[1] - cfg.height[0]);
       const w = 26 + this.rnd() * 46;
-      pos.set(cx + Math.sin(ang) * dist, h / 2, cz + Math.cos(ang) * dist);
+      // standing on the far land, and sunk into it so a slope cannot show under a corner
+      const x = cx + Math.sin(ang) * dist, z = cz + Math.cos(ang) * dist;
+      const ground = this.groundHeight(x, z) - 6;
+      pos.set(x, ground + (h + 6) / 2, z);
       q.setFromAxisAngle(UP, this.rnd() * Math.PI);
-      sc.set(w, h, w * (0.7 + this.rnd() * 0.6));
+      sc.set(w, h + 6, w * (0.7 + this.rnd() * 0.6));
       inst.setMatrixAt(i, m.compose(pos, q, sc));
       inst.setColorAt(i, col.set(cfg.palette[(this.rnd() * cfg.palette.length) | 0]));
     }
@@ -419,7 +383,8 @@ export class TrackWorld {
       ball2.position.y = 240;
       g.add(shaft, ball1, ball2);
       const ang = this.rnd() * Math.PI * 2;
-      g.position.set(cx + Math.sin(ang) * 1500, 0, cz + Math.cos(ang) * 1500);
+      const x = cx + Math.sin(ang) * 1500, z = cz + Math.cos(ang) * 1500;
+      g.position.set(x, this.groundHeight(x, z) - 2, z);
       this.group.add(g);
       this.disposables.push(g);
     }
@@ -434,6 +399,8 @@ export class TrackWorld {
     const nx = Math.ceil((b.maxX - b.minX) / cell) + 1;
     const nz = Math.ceil((b.maxZ - b.minZ) / cell) + 1;
     const heights = new Float32Array(nx * nz);
+    const paved = new Float32Array(nx * nz);
+    const away = new Float32Array(nx * nz).fill(Infinity);
     this.terrain = { minX: b.minX, minZ: b.minZ, cell, nx, nz, heights };
 
     // Coarse "background" height field: Gaussian blur of the road heights.
@@ -483,6 +450,9 @@ export class TrackWorld {
         Math.sin(x / (s * 0.21) + 1.7) * Math.sin(z / (s * 0.19)) * 0.18
       );
     };
+    // the lie of the land away from the track, which the far land carries on past the edge
+    this.hillsAt = (x, z) => coarseAt(x, z) + noise(x, z) * t.hills.amp;
+    const urban = t.ground === 'urban';
 
     for (let j = 0; j < nz; j++) {
       for (let i = 0; i < nx; i++) {
@@ -495,6 +465,9 @@ export class TrackWorld {
           const blend = Math.min(1, Math.max(0, (near.d - corridor) / 55));
           const bs = blend * blend * (3 - 2 * blend);
           h = (p.y[s] - 0.45) * (1 - bs) + h * bs;
+          // a street circuit is paved around the track and runs to scrub further out
+          if (urban) paved[j * nx + i] = this.pavedAt(near.d, corridor);
+          away[j * nx + i] = near.d;
         }
         if (waterPts.length) {
           let bd = Infinity, bw = null;
@@ -513,29 +486,34 @@ export class TrackWorld {
       }
     }
 
-    // Mesh
-    const geo = new THREE.PlaneGeometry(b.maxX - b.minX, b.maxZ - b.minZ, nx - 1, nz - 1);
+    // Mesh. PlaneGeometry lays its vertices out row by row along x, the same order as
+    // `heights`, so vertex idx is grid cell (idx % nx, idx / nx). It is sized to the grid
+    // rather than to the bounds, which the grid overshoots by up to a cell: stretched to
+    // the bounds, the ground drawn drifted off the heights terrainHeight() reads, and it
+    // stopped short of the edge the far land starts from.
+    const gw = (nx - 1) * cell, gd = (nz - 1) * cell;
+    const geo = new THREE.PlaneGeometry(gw, gd, nx - 1, nz - 1);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
-    const colors = new Float32Array(pos.count * 3);
-    const tint = new THREE.Color(t.groundTint);
-    const c = new THREE.Color();
+    for (let idx = 0; idx < pos.count; idx++) pos.setY(idx, heights[idx]);
+    geo.computeVertexNormals();
+    const nrm = geo.attributes.normal.array;
+    const colors = new Float32Array(pos.count * 3), mix = new Float32Array(pos.count * 3);
     for (let idx = 0; idx < pos.count; idx++) {
       const i = idx % nx, j = (idx / nx) | 0;
-      const h = heights[j * nx + i];
-      pos.setY(idx, h);
-      const v = 0.82 + 0.36 * (0.5 + 0.5 * noise(b.minX + i * cell, b.minZ + j * cell));
-      c.copy(tint).multiplyScalar(v);
-      colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+      this.ground.shade(b.minX + i * cell, b.minZ + j * cell, nrm[idx * 3 + 1], paved[idx], 0, away[idx], colors, idx * 3, mix, idx * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    const map = t.ground === 'urban' ? TEX.pavementTexture() : TEX.grassTexture(t.groundTint, t.ground === 'dry');
-    map.repeat.set((b.maxX - b.minX) / 16, (b.maxZ - b.minZ) / 16);
-    const mat = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 1, metalness: 0 });
+    geo.setAttribute('groundMix', new THREE.BufferAttribute(mix, 3));
+    // the farmland is laid out square to the main straight
+    const mat = groundMaterial(t, Math.atan2(p.tx[0], p.tz[0]));
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
+    mesh.position.set(b.minX + gw / 2, 0, b.minZ + gd / 2);
     this.track(mesh, false, true);
+
+    // and the land beyond it, out to the mountains
+    this.far = new FarLand(this, this.ground, this.noise);
+    this.track(this.far.mesh(mat), false, false);
 
     if (t.water) {
       const wmap = TEX.waterTexture();
@@ -549,6 +527,23 @@ export class TrackWorld {
       this.waterMap = wmap;
       this.track(water, false, false);
     }
+  }
+
+  // How paved the ground is `d` metres from the centreline, where the barrier corridor is
+  // `corridor` wide: all of it up to the buildings along a street circuit, none by the
+  // time the town gives way to the hillside.
+  pavedAt(d, corridor) {
+    if (this.theme.ground !== 'urban') return 0;
+    const t = Math.min(1, Math.max(0, (d - corridor - 55) / 60));
+    return 1 - t * t * (3 - 2 * t);
+  }
+
+  // Ground height anywhere: the circuit's terrain inside its grid, the far land outside.
+  groundHeight(x, z) {
+    const T = this.terrain;
+    const fx = (x - T.minX) / T.cell, fz = (z - T.minZ) / T.cell;
+    if (fx >= 0 && fz >= 0 && fx < T.nx - 1 && fz < T.nz - 1) return this.terrainHeight(x, z);
+    return this.far ? this.far.height(x, z) : 0;
   }
 
   terrainHeight(x, z) {
@@ -931,6 +926,7 @@ export class TrackWorld {
     const u = -(p.wallR[f.i] + 78);
     g.position.set(f.x + f.lx * u, this.terrainHeight(f.x + f.lx * u, f.z + f.lz * u), f.z + f.lz * u);
     g.rotation.y = Math.atan2(f.tx, f.tz) + Math.PI / 2;
+    this.clearings.push({ x: g.position.x, z: g.position.z, r: 36 });
     g.traverse((o) => { o.castShadow = true; });
     this.group.add(g);
     this.disposables.push(g);
@@ -1110,6 +1106,12 @@ export class TrackWorld {
       inst.frustumCulled = false;
       this.track(inst, true, true);
     }
+
+    // the woods beyond the trackside trees, and the bushes and stones by the fence
+    const blocked = (x, z, pad) => insideBuilding(x, z) ||
+      this.clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r + pad) ** 2);
+    const paved = (near) => (near ? this.pavedAt(near.d, Math.max(p.wallL[near.i], p.wallR[near.i])) : 0);
+    plantLandscape(this, this.ground, blocked, paved);
   }
 
   // Where the buildings stand. Each one is measured against the ground it actually covers

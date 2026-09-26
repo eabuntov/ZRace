@@ -273,6 +273,13 @@ is published anywhere.
 Layouts are simplified interpretations drawn as control points (see `js/tracks.js`), not
 survey-accurate copies.
 
+Around each one the land carries on to the horizon: past the circuit's own terrain the
+hills keep rolling and rise into mountain ranges (snow-capped behind Monza), lit by the
+same sun as the track. Woods grow in patches with clearings between them, farmland fills
+the open ground, and bushes and stones line the far side of the barriers - all of it
+generated from noise at load time, like everything else. The woods are thinner on phones
+and tablets.
+
 ## How it is put together
 
 ```
@@ -282,6 +289,8 @@ js/main.js          renderer, showroom, race loop and race rules
 js/trackPath.js     centreline maths: spline, elevation, projection (pure, testable in Node)
 js/tracks.js        the five circuits and their themes
 js/trackBuild.js    3D world: road, kerbs, barriers, terrain, water, scenery, sky, clouds, reflections
+js/landscape.js     beyond the fence: ground shading, farmland, the land and mountains out to
+                    the horizon, woods, bushes and stones
 js/effects.js       skid marks, tyre smoke and run-off dust
 js/post.js          bloom and the final tone mapping pass
 js/cars.js          car specs, the procedural car models and the boost plume

@@ -519,7 +519,9 @@ class Game {
     const t0 = performance.now();
     const { def, path } = this.tracks[this.settings.trackIndex];
     this.raceScene = new THREE.Scene();
-    this.world = new TrackWorld(this.raceScene, path, def);
+    // a phone or tablet gets thinner woods: tens of thousands of trees are cheap on a
+    // desktop graphics card and not on a phone's
+    this.world = new TrackWorld(this.raceScene, path, def, { lite: matchMedia('(pointer: coarse)').matches });
     this.raceScene.environment = this.world.environment(this.pmrem);
     this.path = path;
     this.def = def;
